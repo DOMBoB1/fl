@@ -1,0 +1,233 @@
+:root {
+  font-family: system-ui, -apple-system, Segoe UI, Roboto, Arial, sans-serif;
+}
+
+.meet {
+  height: 100vh;
+  display: grid;
+  grid-template-rows: 1fr auto;
+  background: #0b0f1a;
+  color: #e9eefc;
+}
+
+.top {
+  min-height: 0;
+  display: grid;
+  grid-template-columns: 1fr 360px;
+  gap: 14px;
+  padding: 14px;
+  box-sizing: border-box;
+}
+
+.stage {
+  min-height: 0;
+  display: grid;
+  grid-template-rows: auto 1fr;
+  gap: 10px;
+}
+
+.stageHeader {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 10px 12px;
+  background: rgba(255, 255, 255, 0.06);
+  border: 1px solid rgba(255, 255, 255, 0.10);
+  border-radius: 14px;
+  backdrop-filter: blur(8px);
+}
+
+.stageTitle {
+  font-weight: 800;
+  letter-spacing: 0.2px;
+}
+
+.pill {
+  font-size: 12px;
+  padding: 6px 10px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.08);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  text-transform: uppercase;
+}
+
+.pillReady {
+  background: rgba(42, 199, 105, 0.14);
+  border-color: rgba(42, 199, 105, 0.28);
+}
+
+.pillLive {
+  background: rgba(255, 66, 82, 0.16);
+  border-color: rgba(255, 66, 82, 0.30);
+}
+
+.pillErr {
+  background: rgba(255, 170, 0, 0.14);
+  border-color: rgba(255, 170, 0, 0.30);
+}
+
+.videoWrap {
+  position: relative;
+  min-height: 0;
+  border-radius: 16px;
+  overflow: hidden;
+  background: #05070d;
+  border: 1px solid rgba(255, 255, 255, 0.10);
+}
+
+.video {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+}
+
+.overlayTopLeft {
+  position: absolute;
+  top: 12px;
+  left: 12px;
+  display: flex;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.miniStat {
+  display: grid;
+  gap: 2px;
+  padding: 8px 10px;
+  border-radius: 12px;
+  background: rgba(0, 0, 0, 0.38);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  backdrop-filter: blur(8px);
+}
+
+.miniKey {
+  font-size: 11px;
+  color: rgba(233, 238, 252, 0.75);
+}
+
+.miniVal {
+  font-weight: 800;
+  font-size: 14px;
+}
+
+.alertBanner {
+  position: absolute;
+  left: 12px;
+  bottom: 12px;
+  padding: 10px 12px;
+  border-radius: 12px;
+  background: rgba(255, 66, 82, 0.16);
+  border: 1px solid rgba(255, 66, 82, 0.35);
+  font-weight: 700;
+}
+
+.sidebar {
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.card {
+  background: rgba(255, 255, 255, 0.06);
+  border: 1px solid rgba(255, 255, 255, 0.10);
+  border-radius: 16px;
+  padding: 12px;
+  backdrop-filter: blur(8px);
+}
+
+.cardTitle {
+  font-weight: 800;
+  margin-bottom: 10px;
+}
+
+.stat {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  padding: 8px 0;
+  border-bottom: 1px dashed rgba(255, 255, 255, 0.10);
+}
+
+.stat:last-child {
+  border-bottom: none;
+}
+
+.statLabel {
+  color: rgba(233, 238, 252, 0.80);
+}
+
+.statValue {
+  font-weight: 800;
+}
+
+.info {
+  color: rgba(233, 238, 252, 0.85);
+  font-size: 13px;
+  line-height: 1.5;
+}
+
+.bottomBar {
+  display: grid;
+  grid-template-columns: 1fr auto 1fr;
+  align-items: center;
+  gap: 10px;
+  padding: 12px 14px;
+  border-top: 1px solid rgba(255, 255, 255, 0.10);
+  background: rgba(255, 255, 255, 0.05);
+  backdrop-filter: blur(10px);
+}
+
+.bottomCenter {
+  display: flex;
+  gap: 10px;
+  justify-content: center;
+}
+
+.bottomLeft,
+.bottomRight {
+  display: flex;
+  justify-content: flex-start;
+}
+
+.bottomRight {
+  justify-content: flex-end;
+}
+
+.btn {
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  background: rgba(255, 255, 255, 0.08);
+  color: #e9eefc;
+  padding: 10px 14px;
+  border-radius: 999px;
+  font-weight: 800;
+  cursor: pointer;
+}
+
+.btn:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+
+.btnPrimary {
+  background: rgba(58, 120, 255, 0.22);
+  border-color: rgba(58, 120, 255, 0.45);
+}
+
+.btnGhost {
+  background: rgba(255, 255, 255, 0.06);
+}
+
+.hint {
+  font-size: 12px;
+  color: rgba(233, 238, 252, 0.75);
+}
+
+.mono {
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+  color: rgba(233, 238, 252, 0.92);
+}
+
+.hiddenCanvas {
+  display: none;
+}
