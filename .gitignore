@@ -1,3 +1,12 @@
+# ignore ANY venv anywhere
+venv/
+.venv/
+*/venv/
+*/.venv/
+
+# ignore trash_code  
+trash_code/
+
 # Python
 .venv/
 venv/
