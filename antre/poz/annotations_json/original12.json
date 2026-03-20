@@ -1,0 +1,78 @@
+{
+  "image_name": "original12.png",
+  "image_path": "C:\\Users\\Bob\\Desktop\\gits\\antre\\poz\\original12.png",
+  "image_width": 1513,
+  "image_height": 791,
+  "annotations": [
+    {
+      "label": "head",
+      "x1": 146,
+      "y1": 344,
+      "x2": 216,
+      "y2": 429
+    },
+    {
+      "label": "head",
+      "x1": 219,
+      "y1": 378,
+      "x2": 273,
+      "y2": 450
+    },
+    {
+      "label": "head",
+      "x1": 564,
+      "y1": 370,
+      "x2": 634,
+      "y2": 451
+    },
+    {
+      "label": "head",
+      "x1": 910,
+      "y1": 357,
+      "x2": 964,
+      "y2": 424
+    },
+    {
+      "label": "head",
+      "x1": 883,
+      "y1": 367,
+      "x2": 920,
+      "y2": 428
+    },
+    {
+      "label": "head",
+      "x1": 809,
+      "y1": 385,
+      "x2": 827,
+      "y2": 433
+    },
+    {
+      "label": "head",
+      "x1": 788,
+      "y1": 385,
+      "x2": 806,
+      "y2": 429
+    },
+    {
+      "label": "face",
+      "x1": 887,
+      "y1": 388,
+      "x2": 910,
+      "y2": 429
+    },
+    {
+      "label": "side_face",
+      "x1": 559,
+      "y1": 393,
+      "x2": 606,
+      "y2": 456
+    },
+    {
+      "label": "side_face",
+      "x1": 241,
+      "y1": 391,
+      "x2": 283,
+      "y2": 444
+    }
+  ]
+}

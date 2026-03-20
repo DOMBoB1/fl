@@ -1,44 +1,52 @@
-import cv2
 import mediapipe as mp
+import numpy as np
+
+
+def _clip_box(x1, y1, x2, y2, w, h):
+    x1 = max(0, min(w - 1, int(x1)))
+    y1 = max(0, min(h - 1, int(y1)))
+    x2 = max(0, min(w - 1, int(x2)))
+    y2 = max(0, min(h - 1, int(y2)))
+    return x1, y1, x2, y2
+
 
 class MultiFaceDetector:
     def __init__(self, min_conf=0.6):
         self.fd = mp.solutions.face_detection.FaceDetection(
-            model_selection=0,
-            min_detection_confidence=min_conf
+            model_selection=1,
+            min_detection_confidence=min_conf,
         )
 
-    def detect(self, frame_bgr, detect_width=640):
-        """
-        Detect faces on resized frame for speed.
-        Returns list of boxes (x1,y1,x2,y2) in original coords.
-        """
-        H, W = frame_bgr.shape[:2]
-        scale = detect_width / float(W)
-        new_w = detect_width
-        new_h = int(H * scale)
+    def detect(self, frame_bgr, detect_width=640):  # pylint: disable=unused-argument
+        if frame_bgr is None or frame_bgr.size == 0:
+            return []
 
-        small = cv2.resize(frame_bgr, (new_w, new_h), interpolation=cv2.INTER_LINEAR)
-        rgb = cv2.cvtColor(small, cv2.COLOR_BGR2RGB)
+        h, w = frame_bgr.shape[:2]
+        rgb = np.ascontiguousarray(frame_bgr[:, :, ::-1])
         res = self.fd.process(rgb)
 
         boxes = []
-        if not res.detections:
+        if not res or not res.detections:
             return boxes
 
         for det in res.detections:
             r = det.location_data.relative_bounding_box
-            sx1 = int(max(0.0, r.xmin) * new_w)
-            sy1 = int(max(0.0, r.ymin) * new_h)
-            sx2 = int(min(1.0, r.xmin + r.width) * new_w)
-            sy2 = int(min(1.0, r.ymin + r.height) * new_h)
 
-            x1 = int(sx1 / scale)
-            y1 = int(sy1 / scale)
-            x2 = int(sx2 / scale)
-            y2 = int(sy2 / scale)
+            x1 = r.xmin * w
+            y1 = r.ymin * h
+            x2 = (r.xmin + r.width) * w
+            y2 = (r.ymin + r.height) * h
+            x1, y1, x2, y2 = _clip_box(x1, y1, x2, y2, w, h)
 
-            if (x2 - x1) >= 50 and (y2 - y1) >= 50:
-                boxes.append((x1, y1, x2, y2))
+            bw = x2 - x1
+            bh = y2 - y1
+            if bw < 16 or bh < 16:
+                continue
+
+            ratio = bw / (bh + 1e-9)
+            if ratio < 0.28 or ratio > 2.0:
+                continue
+
+            boxes.append((x1, y1, x2, y2))
 
         return boxes

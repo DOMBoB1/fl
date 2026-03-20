@@ -1,5 +1,3 @@
-import numpy as np
-
 def perclos_from_events(events, now, window_s):
     if len(events) < 2:
         return 0.0

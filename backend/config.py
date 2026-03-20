@@ -1,150 +1,106 @@
-# =========================
-# Compatibility aliases
-# (so main.py can use consistent names)
-# =========================
+WIN_NAME = "Classroom Monitor"
+WINDOW_NAME = WIN_NAME
 
-# Window name
-if "WIN_NAME" not in globals():
-    if "WINDOW_NAME" in globals():
-        WIN_NAME = WINDOW_NAME
-    else:
-        WIN_NAME = "Classroom Monitor"
-        WINDOW_NAME = WIN_NAME
-
-# Tracking
-if "TRACK_TTL_S" not in globals():
-    # common older naming
-    if "TRACK_TTL_SECONDS" in globals():
-        TRACK_TTL_S = TRACK_TTL_SECONDS
-    else:
-        TRACK_TTL_S = 3.0
-
-if "IOU_MATCH_T" not in globals():
-    if "MATCH_IOU_THRESHOLD" in globals():
-        IOU_MATCH_T = MATCH_IOU_THRESHOLD
-    else:
-        IOU_MATCH_T = 0.25
-
-if "CENTER_DIST_T" not in globals():
-    if "MATCH_CENTER_DIST_PX" in globals():
-        CENTER_DIST_T = MATCH_CENTER_DIST_PX
-    else:
-        CENTER_DIST_T = 140
-
-if "MIN_TRACK_POINTS" not in globals():
-    MIN_TRACK_POINTS = 15
-
-# Detection / crop
-if "DETECT_EVERY_N_FRAMES" not in globals():
-    DETECT_EVERY_N_FRAMES = 6
-
-if "DETECT_WIDTH" not in globals():
-    DETECT_WIDTH = 640
-
-if "CROP_SIZE" not in globals():
-    CROP_SIZE = 256
-
-# Fatigue
-if "EYES_CLOSED_EAR_T" not in globals():
-    EYES_CLOSED_EAR_T = 0.22
-
-if "DROWSY_CLOSED_MS" not in globals():
-    DROWSY_CLOSED_MS = 900
-
-if "PERCLOS_WINDOW_S" not in globals():
-    PERCLOS_WINDOW_S = 60
-
-# Attention (gaze)
-if "LOOK_MIN" not in globals():
-    LOOK_MIN = 0.32
-
-if "LOOK_MAX" not in globals():
-    LOOK_MAX = 0.68
-
-# Alert
-if "ALERT_CLASS_AVG_PCT" not in globals():
-    ALERT_CLASS_AVG_PCT = 60
-
-if "ALERT_HOLD_S" not in globals():
-    ALERT_HOLD_S = 8
-# =========================
-# App / camera
-# =========================
-CAMERA_INDEX = 0
+# Camera / stream
+CAMERA_INDEX = 1
 FRAME_WIDTH = 1280
 FRAME_HEIGHT = 720
 FPS = 30
-
-WINDOW_NAME = "Multi-Person Fatigue & Attention Detection"
-
-# Keep aspect ratio and fill window nicely (letterbox/pillarbox)
 USE_LETTERBOX_VIEW = True
 
-
-# =========================
-# Multi-person tracking
-# =========================
+# General capacity
 MAX_STUDENTS = 25
 
-# Track matching thresholds (reduce "new IDs")
-TRACK_TTL_SECONDS = 3.0        # keep IDs alive if briefly lost
-MATCH_IOU_THRESHOLD = 0.20     # IoU jitter tolerance
-MATCH_CENTER_DIST_PX = 120     # pixels; increase if camera is far/wide
+# Tracking
+TRACK_TTL_S = 3.0
+IOU_MATCH_T = 0.25
+CENTER_DIST_T = 140
+MIN_TRACK_POINTS = 15
 
+# Detection cadence
+DETECT_EVERY_N_FRAMES = 3
+HEAD_DETECT_EVERY_N_FRAMES = 5
 
-# =========================
-# FaceMesh
-# =========================
+# Detection sizing
+DETECT_WIDTH = 1440
+CROP_SIZE = 256
+
+# Face detection
 ENABLE_FACE_DETECTION = True
-
-# IMPORTANT: True enables iris landmarks (for gaze-based attention)
 REFINE_LANDMARKS = True
-
-MIN_DET_CONF = 0.5
+MIN_DET_CONF = 0.28
 MIN_TRK_CONF = 0.5
 
+# Face box validation
+FACE_BOX_MIN_SIZE = 16
+FACE_BOX_MAX_W_RATIO = 0.72
+FACE_BOX_MAX_H_RATIO = 0.92
+FACE_BOX_MIN_ASPECT = 0.30
+FACE_BOX_MAX_ASPECT = 1.90
+FACE_MESH_EXPAND_SCALE = 1.18
+FACE_INSIDE_HEAD_MIN_IOU = 0.03
 
-# =========================
-# Fatigue metrics
-# =========================
-# EAR threshold for "eyes closed"
-EYE_AR_THRESHOLD = 0.22
+# Head box validation
+HEAD_BOX_MIN_SIZE = 24
+HEAD_BOX_MAX_W_RATIO = 0.82
+HEAD_BOX_MAX_H_RATIO = 0.96
+HEAD_BOX_MIN_ASPECT = 0.35
+HEAD_BOX_MAX_ASPECT = 1.95
 
-# Blink threshold (can be lower than drowsiness threshold)
+# Head anti-false-positive filters
+HEAD_MIN_CENTER_Y_RATIO = 0.18
+HEAD_MAX_CENTER_Y_RATIO = 0.96
+HEAD_MIN_AREA_RATIO = 0.0012
+HEAD_MAX_AREA_RATIO = 0.18
+HEAD_EDGE_MARGIN_RATIO = 0.01
+HEAD_REJECT_IF_TOO_BRIGHT = True
+HEAD_BRIGHT_MEAN_THRESH = 245.0
+HEAD_BRIGHT_STD_THRESH = 12.0
+
+# Count behavior
+COUNT_HEADS_WHEN_NO_FACE = True
+
+# Fatigue
+EYES_CLOSED_EAR_T = 0.22
+DROWSY_CLOSED_MS = 900
+PERCLOS_WINDOW_S = 60
+
 EAR_BLINK_THRESHOLD = 0.20
 EAR_BLINK_CONSEC_FRAMES = 3
-
-# Time windows
 EAR_WINDOW_SECONDS = 10.0
 BLINK_WINDOW_SECONDS = 60.0
 
-# How many samples before we trust metrics
 METRIC_READY_MIN_FRAMES = 20
-
-# Score update interval (for average score display)
 SCORE_UPDATE_INTERVAL = 2.0
 AVERAGE_ACTIVE_WINDOW = 10.0
 
-# Weights for fatigue score (0–100)
 EAR_WEIGHT = 0.6
 BLINK_WEIGHT = 0.4
 
+# Attention
+LOOK_MIN = 0.35
+LOOK_MAX = 0.65
+ATTENTION_WINDOW_SECONDS = 10.0
 
-# =========================
-# Attention (gaze)
-# =========================
-# Gaze ratio in [0..1]; center ~ 0.5
-GAZE_CENTER_MIN = 0.35
-GAZE_CENTER_MAX = 0.65
+# Alerts
+ALERT_CLASS_AVG_PCT = 60
+ALERT_HOLD_S = 8
 
-ATTENTION_WINDOW_SECONDS = 10.0   # attention % computed over last N seconds
-
-
-# =========================
-# Visualization
-# =========================
+# UI / logging
 SHOW_FACE_BOX = True
 SHOW_DEBUG_TEXT = False
+LOGGING_ENABLED = False
 
-# Logging
-LOGGING_ENABLED = True
+# Storage / reports
+DB_PATH = "classroom_monitor.db"
+REPORT_INTERVAL_S = 60
+RECENT_REPORTS_IN_UI = 3
+SESSION_REPORTS_DIR = "reports"
+
+# Identity
+FACE_ID_SIM_THRESHOLD = 0.75
+FACE_ID_MIN_FACE_SIZE = 60
+FACE_ID_MIN_BLUR_SCORE = 50.0
+FACE_ID_CANDIDATE_HITS = 6
+FACE_ID_CANDIDATE_TTL_S = 3.0
+FACE_ID_EVERY_N_FRAMES = 6
