@@ -1,23 +1,22 @@
-from fastapi import FastAPI, File, UploadFile, Form
+from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse, FileResponse
-from dataset_store import FrameDatasetRecorder, init_dataset_db
-
 import numpy as np
-from PIL import Image
+from PIL import Image, UnidentifiedImageError
 import io
 import os
+import traceback
 
-from dataset_store import FrameDatasetRecorder, init_dataset_db
+from dataset_store import init_dataset_db
 from engine import MonitoringEngine, set_dataset_recorder
 
 
 app = FastAPI(title="Classroom Monitor API", version="1.0")
 engine = MonitoringEngine()
 
-dataset_recorder = FrameDatasetRecorder(save_every_n_frames=1)
 init_dataset_db()
-set_dataset_recorder(dataset_recorder)
+set_dataset_recorder(None)
+dataset_recorder = None
 
 app.add_middleware(
     CORSMiddleware,
@@ -36,56 +35,168 @@ def health():
     return {"ok": True}
 
 
-@app.post("/analyze")
-async def analyze(
-    image: UploadFile = File(...),
-    boxes: int = Form(0),
-):
+def _looks_like_upload(value) -> bool:
+    return (
+        value is not None
+        and hasattr(value, "read")
+        and hasattr(value, "filename")
+    )
+
+
+async def _pick_uploaded_image(request: Request):
+    form = await request.form()
+
+    upload = None
+    for key in ("image", "file", "frame"):
+        value = form.get(key)
+        if _looks_like_upload(value):
+            upload = value
+            break
+
+    boxes_raw = form.get("boxes", 0)
     try:
+        boxes = int(boxes_raw)
+    except (TypeError, ValueError):
+        boxes = 0
+
+    show_face_raw = form.get("show_face", 1)
+    try:
+        show_face = int(show_face_raw)
+    except (TypeError, ValueError):
+        show_face = 1
+
+    show_head_raw = form.get("show_head", 1)
+    try:
+        show_head = int(show_head_raw)
+    except (TypeError, ValueError):
+        show_head = 1
+
+    return upload, boxes, show_face, show_head
+
+
+@app.post("/analyze")
+async def analyze(request: Request):
+    try:
+        image, boxes, show_face, show_head = await _pick_uploaded_image(request)
+
+        if image is None:
+            return JSONResponse(
+                {
+                    "error": "missing image input",
+                    "detail": "Expected multipart form-data with one of: image, file, frame",
+                },
+                status_code=400,
+            )
+
         data = await image.read()
         if not data:
             return JSONResponse({"error": "empty upload"}, status_code=400)
 
-        pil_img = Image.open(io.BytesIO(data)).convert("RGB")
+        try:
+            pil_img = Image.open(io.BytesIO(data)).convert("RGB")
+        except UnidentifiedImageError:
+            return JSONResponse(
+                {"error": "invalid image", "detail": "Uploaded file is not a valid image"},
+                status_code=400,
+            )
+
         img = np.array(pil_img)
+        if img.size == 0:
+            return JSONResponse({"error": "decoded image is empty"}, status_code=400)
+
         img = img[:, :, ::-1].copy()
 
-        res = engine.process_external_frame(img, want_boxes=bool(int(boxes)))
+        stats = engine.process_external_frame(img, want_boxes=bool(boxes))
 
-        if isinstance(res, tuple) and len(res) == 2:
-            stats = res[1]
+        if not isinstance(stats, dict):
+            return JSONResponse(
+                {"error": "engine returned invalid response"},
+                status_code=500,
+            )
+
+        if bool(boxes):
+            faces_data = stats.get("faces_data", [])
+            filtered_faces_data = []
+
+            for item in faces_data:
+                row = dict(item)
+
+                if not bool(show_face):
+                    row.pop("face_bbox_n", None)
+                    if row.get("kind") == "face":
+                        row["bbox_n"] = None
+
+                if not bool(show_head):
+                    row.pop("head_bbox_n", None)
+
+                filtered_faces_data.append(row)
+
+            stats["faces_data"] = filtered_faces_data
         else:
-            stats = res
+            stats["faces_data"] = []
 
         return {"stats": stats}
 
     except Exception as e:
-        return JSONResponse({"error": str(e)}, status_code=500)
+        traceback.print_exc()
+        return JSONResponse(
+            {
+                "error": str(e),
+                "type": type(e).__name__,
+            },
+            status_code=500,
+        )
 
 
 @app.post("/session/start")
 def session_start():
-    dataset_recorder.start(
-    source="webcam",
-    notes="Sesiune pornita din frontend"
-)
     try:
+        if dataset_recorder is not None:
+            dataset_recorder.start(
+                source="webcam",
+                notes="Sesiune pornita din frontend",
+            )
+
         engine.start_session()
-        return {"ok": True}
+        return {
+            "ok": True,
+            "session_active": engine.session_active,
+            "session_id": engine.session_id,
+        }
     except Exception as e:
+        traceback.print_exc()
         return JSONResponse({"error": str(e)}, status_code=500)
 
 
 @app.post("/session/stop")
 def session_stop():
-    dataset_recorder.stop()
     try:
+        if dataset_recorder is not None:
+            dataset_recorder.stop()
+
         engine.stop_session()
         return {
             "ok": True,
-            "summary": engine.get_session_summary()
+            "summary": engine.get_session_summary(),
+            "session_active": engine.session_active,
+            "session_id": engine.session_id,
         }
     except Exception as e:
+        traceback.print_exc()
+        return JSONResponse({"error": str(e)}, status_code=500)
+
+
+@app.get("/session/summary")
+def session_summary():
+    try:
+        return {
+            "ok": True,
+            "session_active": engine.session_active,
+            "session_id": engine.session_id,
+            "summary": engine.get_session_summary(),
+        }
+    except Exception as e:
+        traceback.print_exc()
         return JSONResponse({"error": str(e)}, status_code=500)
 
 
@@ -95,7 +206,7 @@ def session_report():
         if engine.session_active:
             return JSONResponse(
                 {"error": "Stop session first"},
-                status_code=400
+                status_code=400,
             )
 
         path = engine.export_session_report_xlsx()
@@ -104,10 +215,11 @@ def session_report():
         return FileResponse(
             path,
             media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-            filename=filename
+            filename=filename,
         )
 
     except ValueError as e:
         return JSONResponse({"error": str(e)}, status_code=400)
     except Exception as e:
+        traceback.print_exc()
         return JSONResponse({"error": str(e)}, status_code=500)

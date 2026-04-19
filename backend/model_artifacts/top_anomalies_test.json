@@ -1,0 +1,304 @@
+{
+  "rows": [
+    {
+      "rank": 1,
+      "source_path": "..\\backend\\prepared_dataset\\images\\session_20260313_082603\\frame_00001586.png",
+      "score": -0.17279718394182464,
+      "is_anomaly": 1
+    },
+    {
+      "rank": 2,
+      "source_path": "..\\backend\\prepared_dataset\\images\\session_20260313_082603\\frame_00000985.png",
+      "score": -0.12342460794135801,
+      "is_anomaly": 1
+    },
+    {
+      "rank": 3,
+      "source_path": "..\\backend\\prepared_dataset\\images\\session_20260313_082603\\frame_00001659.png",
+      "score": -0.11507900546263006,
+      "is_anomaly": 1
+    },
+    {
+      "rank": 4,
+      "source_path": "..\\backend\\prepared_dataset\\images\\session_20260313_082603\\frame_00001035.png",
+      "score": -0.11142008189366115,
+      "is_anomaly": 1
+    },
+    {
+      "rank": 5,
+      "source_path": "..\\backend\\prepared_dataset\\images\\session_20260313_082603\\frame_00001034.png",
+      "score": -0.1113319539861648,
+      "is_anomaly": 1
+    },
+    {
+      "rank": 6,
+      "source_path": "..\\backend\\prepared_dataset\\images\\session_20260313_082603\\frame_00000441.png",
+      "score": -0.10886279484632289,
+      "is_anomaly": 1
+    },
+    {
+      "rank": 7,
+      "source_path": "..\\backend\\prepared_dataset\\images\\session_20260313_082603\\frame_00000419.png",
+      "score": -0.107863290734033,
+      "is_anomaly": 1
+    },
+    {
+      "rank": 8,
+      "source_path": "..\\backend\\prepared_dataset\\images\\session_20260313_082603\\frame_00000442.png",
+      "score": -0.10779279462727198,
+      "is_anomaly": 1
+    },
+    {
+      "rank": 9,
+      "source_path": "..\\backend\\prepared_dataset\\images\\session_20260313_082603\\frame_00001126.png",
+      "score": -0.1074933851339801,
+      "is_anomaly": 1
+    },
+    {
+      "rank": 10,
+      "source_path": "..\\backend\\prepared_dataset\\images\\session_20260313_082603\\frame_00000435.png",
+      "score": -0.10738158583186863,
+      "is_anomaly": 1
+    },
+    {
+      "rank": 11,
+      "source_path": "..\\backend\\prepared_dataset\\images\\session_20260313_082603\\frame_00000436.png",
+      "score": -0.10730569480165242,
+      "is_anomaly": 1
+    },
+    {
+      "rank": 12,
+      "source_path": "..\\backend\\prepared_dataset\\images\\session_20260313_082603\\frame_00000424.png",
+      "score": -0.10725186759805672,
+      "is_anomaly": 1
+    },
+    {
+      "rank": 13,
+      "source_path": "..\\backend\\prepared_dataset\\images\\session_20260313_082603\\frame_00000458.png",
+      "score": -0.10697706796970807,
+      "is_anomaly": 1
+    },
+    {
+      "rank": 14,
+      "source_path": "..\\backend\\prepared_dataset\\images\\session_20260313_082603\\frame_00000438.png",
+      "score": -0.10667876693583445,
+      "is_anomaly": 1
+    },
+    {
+      "rank": 15,
+      "source_path": "..\\backend\\prepared_dataset\\images\\session_20260313_082603\\frame_00000428.png",
+      "score": -0.10660296372133626,
+      "is_anomaly": 1
+    },
+    {
+      "rank": 16,
+      "source_path": "..\\backend\\prepared_dataset\\images\\session_20260313_082603\\frame_00000849.png",
+      "score": -0.10657140110765528,
+      "is_anomaly": 1
+    },
+    {
+      "rank": 17,
+      "source_path": "..\\backend\\prepared_dataset\\images\\session_20260313_082603\\frame_00000465.png",
+      "score": -0.10649249220786516,
+      "is_anomaly": 1
+    },
+    {
+      "rank": 18,
+      "source_path": "..\\backend\\prepared_dataset\\images\\session_20260313_082603\\frame_00000468.png",
+      "score": -0.10649249220786516,
+      "is_anomaly": 1
+    },
+    {
+      "rank": 19,
+      "source_path": "..\\backend\\prepared_dataset\\images\\session_20260313_082603\\frame_00000461.png",
+      "score": -0.10649249220786516,
+      "is_anomaly": 1
+    },
+    {
+      "rank": 20,
+      "source_path": "..\\backend\\prepared_dataset\\images\\session_20260313_082603\\frame_00000445.png",
+      "score": -0.10627471715305581,
+      "is_anomaly": 1
+    },
+    {
+      "rank": 21,
+      "source_path": "..\\backend\\prepared_dataset\\images\\session_20260313_082603\\frame_00000447.png",
+      "score": -0.10627471715305581,
+      "is_anomaly": 1
+    },
+    {
+      "rank": 22,
+      "source_path": "..\\backend\\prepared_dataset\\images\\session_20260313_082603\\frame_00000446.png",
+      "score": -0.10627471715305581,
+      "is_anomaly": 1
+    },
+    {
+      "rank": 23,
+      "source_path": "..\\backend\\prepared_dataset\\images\\session_20260313_082603\\frame_00000432.png",
+      "score": -0.10627471715305581,
+      "is_anomaly": 1
+    },
+    {
+      "rank": 24,
+      "source_path": "..\\backend\\prepared_dataset\\images\\session_20260313_082603\\frame_00000450.png",
+      "score": -0.10627471715305581,
+      "is_anomaly": 1
+    },
+    {
+      "rank": 25,
+      "source_path": "..\\backend\\prepared_dataset\\images\\session_20260313_082603\\frame_00000451.png",
+      "score": -0.10611066048303686,
+      "is_anomaly": 1
+    },
+    {
+      "rank": 26,
+      "source_path": "..\\backend\\prepared_dataset\\images\\session_20260313_082603\\frame_00000433.png",
+      "score": -0.10611066048303686,
+      "is_anomaly": 1
+    },
+    {
+      "rank": 27,
+      "source_path": "..\\backend\\prepared_dataset\\images\\session_20260313_082603\\frame_00000444.png",
+      "score": -0.10611066048303686,
+      "is_anomaly": 1
+    },
+    {
+      "rank": 28,
+      "source_path": "..\\backend\\prepared_dataset\\images\\session_20260313_082603\\frame_00000457.png",
+      "score": -0.10611066048303686,
+      "is_anomaly": 1
+    },
+    {
+      "rank": 29,
+      "source_path": "..\\backend\\prepared_dataset\\images\\session_20260313_082603\\frame_00000437.png",
+      "score": -0.10611066048303686,
+      "is_anomaly": 1
+    },
+    {
+      "rank": 30,
+      "source_path": "..\\backend\\prepared_dataset\\images\\session_20260313_082603\\frame_00000452.png",
+      "score": -0.105782680311161,
+      "is_anomaly": 1
+    },
+    {
+      "rank": 31,
+      "source_path": "..\\backend\\prepared_dataset\\images\\session_20260313_082603\\frame_00000453.png",
+      "score": -0.105782680311161,
+      "is_anomaly": 1
+    },
+    {
+      "rank": 32,
+      "source_path": "..\\backend\\prepared_dataset\\images\\session_20260313_082603\\frame_00000431.png",
+      "score": -0.105782680311161,
+      "is_anomaly": 1
+    },
+    {
+      "rank": 33,
+      "source_path": "..\\backend\\prepared_dataset\\images\\session_20260313_082603\\frame_00000439.png",
+      "score": -0.105782680311161,
+      "is_anomaly": 1
+    },
+    {
+      "rank": 34,
+      "source_path": "..\\backend\\prepared_dataset\\images\\session_20260313_082603\\frame_00000440.png",
+      "score": -0.105782680311161,
+      "is_anomaly": 1
+    },
+    {
+      "rank": 35,
+      "source_path": "..\\backend\\prepared_dataset\\images\\session_20260313_082603\\frame_00000426.png",
+      "score": -0.10574868017832628,
+      "is_anomaly": 1
+    },
+    {
+      "rank": 36,
+      "source_path": "..\\backend\\prepared_dataset\\images\\session_20260313_082603\\frame_00000423.png",
+      "score": -0.10561875678528199,
+      "is_anomaly": 1
+    },
+    {
+      "rank": 37,
+      "source_path": "..\\backend\\prepared_dataset\\images\\session_20260313_082603\\frame_00000443.png",
+      "score": -0.10561875678528199,
+      "is_anomaly": 1
+    },
+    {
+      "rank": 38,
+      "source_path": "..\\backend\\prepared_dataset\\images\\session_20260313_082603\\frame_00000421.png",
+      "score": -0.1055841309527541,
+      "is_anomaly": 1
+    },
+    {
+      "rank": 39,
+      "source_path": "..\\backend\\prepared_dataset\\images\\session_20260313_082603\\frame_00000467.png",
+      "score": -0.10546289507274831,
+      "is_anomaly": 1
+    },
+    {
+      "rank": 40,
+      "source_path": "..\\backend\\prepared_dataset\\images\\session_20260313_082603\\frame_00000449.png",
+      "score": -0.10529104279361023,
+      "is_anomaly": 1
+    },
+    {
+      "rank": 41,
+      "source_path": "..\\backend\\prepared_dataset\\images\\session_20260313_082603\\frame_00000427.png",
+      "score": -0.10512725230381492,
+      "is_anomaly": 1
+    },
+    {
+      "rank": 42,
+      "source_path": "..\\backend\\prepared_dataset\\images\\session_20260313_082603\\frame_00000462.png",
+      "score": -0.10512725230381492,
+      "is_anomaly": 1
+    },
+    {
+      "rank": 43,
+      "source_path": "..\\backend\\prepared_dataset\\images\\session_20260313_082603\\frame_00000429.png",
+      "score": -0.10508171155520207,
+      "is_anomaly": 1
+    },
+    {
+      "rank": 44,
+      "source_path": "..\\backend\\prepared_dataset\\images\\session_20260313_082603\\frame_00000466.png",
+      "score": -0.10491797771000178,
+      "is_anomaly": 1
+    },
+    {
+      "rank": 45,
+      "source_path": "..\\backend\\prepared_dataset\\images\\session_20260313_082603\\frame_00000852.png",
+      "score": -0.10484200992522852,
+      "is_anomaly": 1
+    },
+    {
+      "rank": 46,
+      "source_path": "..\\backend\\prepared_dataset\\images\\session_20260313_082603\\frame_00000454.png",
+      "score": -0.10475428817083754,
+      "is_anomaly": 1
+    },
+    {
+      "rank": 47,
+      "source_path": "..\\backend\\prepared_dataset\\images\\session_20260313_082603\\frame_00000310.png",
+      "score": -0.10469257758766537,
+      "is_anomaly": 1
+    },
+    {
+      "rank": 48,
+      "source_path": "..\\backend\\prepared_dataset\\images\\session_20260313_082603\\frame_00000425.png",
+      "score": -0.10467063743252825,
+      "is_anomaly": 1
+    },
+    {
+      "rank": 49,
+      "source_path": "..\\backend\\prepared_dataset\\images\\session_20260313_082603\\frame_00000311.png",
+      "score": -0.10449426127863937,
+      "is_anomaly": 1
+    },
+    {
+      "rank": 50,
+      "source_path": "..\\backend\\prepared_dataset\\images\\session_20260313_082603\\frame_00000456.png",
+      "score": -0.1043089644354791,
+      "is_anomaly": 1
+    }
+  ]
+}

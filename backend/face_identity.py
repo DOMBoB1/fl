@@ -5,7 +5,6 @@ import numpy as np
 import tensorflow as tf
 from keras_facenet import FaceNet
 
-# Reduce TensorFlow / Keras warning verbosity
 tf.compat.v1.logging.set_verbosity(tf.compat.v1.logging.ERROR)
 tf.get_logger().setLevel("ERROR")
 
@@ -24,16 +23,10 @@ def cosine_sim(a: np.ndarray, b: np.ndarray) -> float:
 
 
 def variance_of_laplacian(img_bgr: np.ndarray) -> float:
-    """
-    Approximate focus/blur measure without using cvtColor or Laplacian.
-    Uses simple luminance and finite differences to estimate edge energy.
-    """
     if img_bgr is None or img_bgr.size == 0:
         return 0.0
 
-    # Convert to grayscale-like luminance using NumPy only
     if img_bgr.ndim == 3 and img_bgr.shape[2] >= 3:
-        # BGR order assumed: use weighted sum to approximate luminance
         b = img_bgr[..., 0].astype(np.float32)
         g = img_bgr[..., 1].astype(np.float32)
         r = img_bgr[..., 2].astype(np.float32)
@@ -44,12 +37,12 @@ def variance_of_laplacian(img_bgr: np.ndarray) -> float:
     if gray.size < 4:
         return 0.0
 
-    # Finite-difference gradients as a Laplacian proxy
     gx = np.diff(gray, axis=1)
     gy = np.diff(gray, axis=0)
     grad_mag = np.sqrt(gx[:-1, :] ** 2 + gy[:, :-1] ** 2)
     return float(grad_mag.var())
-    
+
+
 @dataclass
 class Identity:
     identity_id: int
@@ -101,8 +94,6 @@ class FaceIdentityManager:
     def _get_embedding(self, face_bgr: np.ndarray) -> Optional[np.ndarray]:
         if not self._valid_face(face_bgr):
             return None
-        # Assume the incoming face image is already in a supported color space
-        # and appropriate size for the embedder.
         arr = np.expand_dims(face_bgr.astype("float32"), axis=0)
         emb = self.embedder.embeddings(arr)[0]
         return l2_normalize(emb.astype(np.float32))
@@ -178,6 +169,20 @@ class FaceIdentityManager:
             return self._create_identity_from_candidate(track_id, now)
 
         return None
+
+    def force_assign_track_identity(self, track_id: int, identity_id: int, face_bgr, now: float) -> int:
+        self.track_to_identity[int(track_id)] = int(identity_id)
+
+        ident = self.identities.get(int(identity_id))
+        if ident is not None and face_bgr is not None:
+            emb = self._get_embedding(face_bgr)
+            if emb is not None:
+                ident.embedding = l2_normalize(0.85 * ident.embedding + 0.15 * emb)
+                ident.last_seen = now
+                ident.hits += 1
+
+        self.candidates.pop(int(track_id), None)
+        return int(identity_id)
 
     def cleanup(self, now: float, active_track_ids: List[int]) -> None:
         active_track_ids = set(active_track_ids)

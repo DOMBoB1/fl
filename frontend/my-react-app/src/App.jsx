@@ -12,36 +12,40 @@ function Stat({ label, value }) {
   );
 }
 
-function clamp(v, a, b) {
-  return Math.max(a, Math.min(b, v));
+function SectionCard({
+  title,
+  open,
+  onToggle,
+  children,
+  bodyClassName = "",
+  rightSlot = null,
+  className = "",
+}) {
+  return (
+    <div className={`card collapsibleCard ${open ? "open" : "closed"} ${className}`}>
+      <button className="cardHeaderBtn" onClick={onToggle} type="button">
+        <div className="cardHeaderLeft">
+          <span className={`cardChevron ${open ? "open" : ""}`}>⌄</span>
+          <div className="cardTitle">{title}</div>
+        </div>
+        {rightSlot ? <div className="cardHeaderRight">{rightSlot}</div> : null}
+      </button>
+
+      <div className={`cardBody ${open ? "open" : "closed"} ${bodyClassName}`}>
+        {children}
+      </div>
+    </div>
+  );
 }
 
-function iou(a, b) {
-  const ax1 = a[0], ay1 = a[1], ax2 = a[2], ay2 = a[3];
-  const bx1 = b[0], by1 = b[1], bx2 = b[2], by2 = b[3];
-
-  const ix1 = Math.max(ax1, bx1);
-  const iy1 = Math.max(ay1, by1);
-  const ix2 = Math.min(ax2, bx2);
-  const iy2 = Math.min(ay2, by2);
-
-  const iw = Math.max(0, ix2 - ix1);
-  const ih = Math.max(0, iy2 - iy1);
-  const inter = iw * ih;
-
-  if (inter <= 0) return 0;
-
-  const areaA = Math.max(0, ax2 - ax1) * Math.max(0, ay2 - ay1);
-  const areaB = Math.max(0, bx2 - bx1) * Math.max(0, by2 - by1);
-
-  return inter / (areaA + areaB - inter + 1e-9);
+function clamp(v, a, b) {
+  return Math.max(a, Math.min(b, v));
 }
 
 function normalizeBox(box) {
   if (!box || !Array.isArray(box) || box.length !== 4) return null;
 
   let [x1, y1, x2, y2] = box.map((v) => Number(v));
-
   if (![x1, y1, x2, y2].every(Number.isFinite)) return null;
 
   x1 = clamp(x1, 0, 1);
@@ -53,96 +57,6 @@ function normalizeBox(box) {
   return [x1, y1, x2, y2];
 }
 
-function boxW(box) {
-  return box ? Math.max(0, box[2] - box[0]) : 0;
-}
-
-function boxH(box) {
-  return box ? Math.max(0, box[3] - box[1]) : 0;
-}
-
-function makeHeadBoxFromFace(faceBox) {
-  const b = normalizeBox(faceBox);
-  if (!b) return null;
-
-  const [x1, y1, x2, y2] = b;
-  const w = x2 - x1;
-  const h = y2 - y1;
-
-  const expandX = w * 0.30;
-  const expandTop = h * 0.75;
-  const expandBottom = h * 0.22;
-
-  return normalizeBox([
-    x1 - expandX,
-    y1 - expandTop,
-    x2 + expandX,
-    y2 + expandBottom,
-  ]);
-}
-
-function isLikelyFaceBox(box, score = 1) {
-  const b = normalizeBox(box);
-  if (!b) return false;
-
-  const w = boxW(b);
-  const h = boxH(b);
-  const area = w * h;
-  const ratio = w / Math.max(h, 1e-9);
-
-  if (score < 0.35) return false;
-  if (area < 0.0022) return false;
-  if (w < 0.03 || h < 0.05) return false;
-  if (ratio < 0.45 || ratio > 1.35) return false;
-
-  const nearEdge =
-    b[0] < 0.01 || b[1] < 0.01 || b[2] > 0.99 || b[3] > 0.99;
-
-  if (nearEdge && area < 0.02) return false;
-
-  return true;
-}
-
-function nmsFaces(faces, iouThresh = 0.55) {
-  if (!faces || faces.length === 0) return [];
-
-  const prepared = faces
-    .map((f, index) => {
-      const rawFace = normalizeBox(f.face_bbox_n || f.bbox_n);
-      const score = Number(f.score ?? f.confidence ?? 1);
-
-      if (!rawFace) return null;
-      if (!isLikelyFaceBox(rawFace, score)) return null;
-
-      return {
-        ...f,
-        _idx: index,
-        _score: score,
-        _face: rawFace,
-        _area: boxW(rawFace) * boxH(rawFace),
-      };
-    })
-    .filter(Boolean)
-    .sort((a, b) => {
-      if (b._score !== a._score) return b._score - a._score;
-      return b._area - a._area;
-    });
-
-  const kept = [];
-  for (const f of prepared) {
-    let keep = true;
-    for (const k of kept) {
-      if (iou(f._face, k._face) >= iouThresh) {
-        keep = false;
-        break;
-      }
-    }
-    if (keep) kept.push(f);
-  }
-
-  return kept;
-}
-
 function formatReportTime(ts) {
   if (!ts) return "-";
   const d = new Date(ts * 1000);
@@ -151,6 +65,10 @@ function formatReportTime(ts) {
     minute: "2-digit",
     second: "2-digit",
   });
+}
+
+function pluralizeStudent(count) {
+  return `${count} student${count === 1 ? "" : "s"}`;
 }
 
 function ReportItem({ report }) {
@@ -174,11 +92,88 @@ function ReportItem({ report }) {
       <div className="reportLine">
         Avg attention: <strong>{Number(report.attention_avg ?? 0).toFixed(1)}%</strong>
       </div>
-      <div className="reportLine">
-        Alerts: <strong>{Number(report.alert_count ?? 0)}</strong>
-      </div>
     </div>
   );
+}
+
+function buildTeacherDecision({
+  faces,
+  fatigue,
+  attention,
+  fatigueAlertActive,
+  attentionAlertActive,
+  studentAlerts,
+  thresholds,
+}) {
+  const suggestions = [];
+  const observations = [];
+
+  if (fatigueAlertActive && attentionAlertActive) {
+    observations.push(
+      `Class fatigue is high (${fatigue}% ≥ ${thresholds.class_fatigue_on}%) and class attention is low (${attention}% ≤ ${thresholds.class_attention_on}%).`
+    );
+    suggestions.push("Consider a short break or a quick activity change.");
+    suggestions.push("Reduce passive lecturing and re-engage the room with questions.");
+  } else if (fatigueAlertActive) {
+    observations.push(
+      `Class fatigue is high (${fatigue}% ≥ ${thresholds.class_fatigue_on}%).`
+    );
+    suggestions.push("Consider a short pause, stretch break, or lighter activity.");
+    suggestions.push("Switch to a more interactive task for a few minutes.");
+  } else if (attentionAlertActive) {
+    observations.push(
+      `Class attention is low (${attention}% ≤ ${thresholds.class_attention_on}%).`
+    );
+    suggestions.push("Try re-engaging students with direct questions or a quick recap.");
+    suggestions.push("Change pace, tone, or task type to recover attention.");
+  } else {
+    observations.push(
+      `No class-level alert. Current class averages are fatigue ${fatigue}% and attention ${attention}%.`
+    );
+  }
+
+  if (Array.isArray(studentAlerts) && studentAlerts.length > 0) {
+    const critical = studentAlerts.filter(
+      (s) => String(s.severity || "").toLowerCase() === "critical"
+    );
+    const warning = studentAlerts.filter(
+      (s) => String(s.severity || "").toLowerCase() === "warning"
+    );
+
+    if (critical.length > 0) {
+      observations.push(
+        `${pluralizeStudent(critical.length)} require${critical.length === 1 ? "s" : ""} immediate individual attention.`
+      );
+      suggestions.push(
+        `Check ${critical.length === 1 ? "the flagged student" : "the flagged students"} individually.`
+      );
+    } else if (warning.length > 0) {
+      observations.push(
+        `${pluralizeStudent(warning.length)} show${warning.length === 1 ? "s" : ""} signs of inattention or fatigue.`
+      );
+      suggestions.push("Monitor flagged students and consider a local interaction.");
+    }
+  } else {
+    observations.push("No individual student alert is active.");
+  }
+
+  if (
+    !fatigueAlertActive &&
+    !attentionAlertActive &&
+    Array.isArray(studentAlerts) &&
+    studentAlerts.length === 0
+  ) {
+    if (faces === 1) {
+      suggestions.push("Continue monitoring the current student.");
+    } else if (faces > 1) {
+      suggestions.push("Continue the current teaching flow and monitor trends.");
+    }
+  }
+
+  return {
+    summary: observations.join(" "),
+    suggestions: [...new Set(suggestions)],
+  };
 }
 
 export default function App() {
@@ -188,24 +183,52 @@ export default function App() {
   const rafRef = useRef(null);
   const timerRef = useRef(null);
   const inFlightRef = useRef(false);
+  const audioRef = useRef(null);
 
   const boxesOnRef = useRef(false);
   const showFaceRef = useRef(true);
   const showHeadRef = useRef(true);
+
+  const prevAnyAlertRef = useRef(false);
 
   const [running, setRunning] = useState(false);
   const [status, setStatus] = useState("idle");
   const [boxesOn, setBoxesOn] = useState(false);
   const [showFace, setShowFace] = useState(true);
   const [showHead, setShowHead] = useState(true);
-  const [reportReady, setReportReady] = useState(false);
+  const [raportReady, setRaportReady] = useState(false);
+
+  const [statsOpen, setStatsOpen] = useState(true);
+  const [alertsOpen, setAlertsOpen] = useState(true);
+  const [decisionOpen, setDecisionOpen] = useState(true);
+  const [infoOpen, setInfoOpen] = useState(true);
 
   const [faces, setFaces] = useState(0);
+  const [heads, setHeads] = useState(0);
   const [fatigue, setFatigue] = useState(0);
   const [attention, setAttention] = useState(0);
   const [alertActive, setAlertActive] = useState(false);
+  const [fatigueAlertActive, setFatigueAlertActive] = useState(false);
+  const [attentionAlertActive, setAttentionAlertActive] = useState(false);
+  const [studentAlerts, setStudentAlerts] = useState([]);
   const [fps, setFps] = useState(0);
   const [recentReports, setRecentReports] = useState([]);
+  const [alertEventCount, setAlertEventCount] = useState(0);
+  const [validObservations, setValidObservations] = useState(0);
+
+  const [thresholds, setThresholds] = useState({
+    class_fatigue_on: 50,
+    class_fatigue_off: 45,
+    class_attention_on: 50,
+    class_attention_off: 55,
+    student_fatigue_on: 60,
+    student_fatigue_off: 52,
+    student_attention_on: 50,
+    student_attention_off: 55,
+    student_fatigue_critical: 70,
+    student_attention_critical: 30,
+    min_active_students_for_class_alert: 1,
+  });
 
   const facesDataRef = useRef([]);
   const smoothFaceRef = useRef(new Map());
@@ -218,6 +241,44 @@ export default function App() {
     return "pill";
   }, [status]);
 
+  const alertMessage = useMemo(() => {
+    if (fatigueAlertActive && attentionAlertActive) {
+      return `⚠️ High fatigue (${fatigue}%) and low attention (${attention}%)`;
+    }
+    if (fatigueAlertActive) {
+      return `⚠️ High fatigue: ${fatigue}%`;
+    }
+    if (attentionAlertActive) {
+      return `⚠️ Low attention: ${attention}%`;
+    }
+    if (studentAlerts.length > 0) {
+      return `⚠️ ${pluralizeStudent(studentAlerts.length)} need${
+        studentAlerts.length === 1 ? "s" : ""
+      } attention`;
+    }
+    return "";
+  }, [fatigueAlertActive, attentionAlertActive, studentAlerts, fatigue, attention]);
+
+  const teacherDecision = useMemo(() => {
+    return buildTeacherDecision({
+      faces,
+      fatigue,
+      attention,
+      fatigueAlertActive,
+      attentionAlertActive,
+      studentAlerts,
+      thresholds,
+    });
+  }, [
+    faces,
+    fatigue,
+    attention,
+    fatigueAlertActive,
+    attentionAlertActive,
+    studentAlerts,
+    thresholds,
+  ]);
+
   useEffect(() => {
     boxesOnRef.current = boxesOn;
   }, [boxesOn]);
@@ -229,6 +290,28 @@ export default function App() {
   useEffect(() => {
     showHeadRef.current = showHead;
   }, [showHead]);
+
+  useEffect(() => {
+    const anyNow =
+      Boolean(fatigueAlertActive) ||
+      Boolean(attentionAlertActive) ||
+      (Array.isArray(studentAlerts) &&
+        studentAlerts.some((s) => String(s.severity || "").toLowerCase() === "critical"));
+
+    const triggered = !prevAnyAlertRef.current && anyNow;
+
+    if (triggered && audioRef.current) {
+      try {
+        audioRef.current.currentTime = 0;
+        const p = audioRef.current.play();
+        if (p && typeof p.catch === "function") {
+          p.catch(() => {});
+        }
+      } catch (_err) {}
+    }
+
+    prevAnyAlertRef.current = anyNow;
+  }, [fatigueAlertActive, attentionAlertActive, studentAlerts]);
 
   useEffect(() => {
     let mounted = true;
@@ -305,7 +388,7 @@ export default function App() {
     }
   }
 
-  function drawOneBox(ctx, ov, boxN, color, mapRef, id, now, label = "") {
+  function drawOneBox(ctx, ov, boxN, color, mapRef, id, now, label = "", dashed = false) {
     const box = normalizeBox(boxN);
     if (!box) return;
 
@@ -331,15 +414,22 @@ export default function App() {
     ctx.strokeStyle = color;
     ctx.shadowColor = color;
     ctx.shadowBlur = 8 * dpr;
+
+    if (dashed) {
+      ctx.setLineDash([10 * dpr, 6 * dpr]);
+    } else {
+      ctx.setLineDash([]);
+    }
+
     ctx.strokeRect(x1, y1, w, h);
     ctx.shadowBlur = 0;
+    ctx.setLineDash([]);
 
     if (label) {
       const padX = 8 * dpr;
-      const padY = 5 * dpr;
+      const bh = 22 * dpr;
       ctx.font = `${12 * dpr}px system-ui, sans-serif`;
       const tw = ctx.measureText(label).width;
-      const bh = 22 * dpr;
       const by = Math.max(0, y1 - bh - 4 * dpr);
 
       ctx.fillStyle = color;
@@ -368,38 +458,48 @@ export default function App() {
     ctx.clearRect(0, 0, ov.width, ov.height);
 
     if (boxesOnRef.current) {
-      const facesData = facesDataRef.current || [];
-      const filtered = nmsFaces(facesData, 0.55);
+      const facesData = Array.isArray(facesDataRef.current) ? facesDataRef.current : [];
       const now = performance.now();
 
-      for (const f of filtered) {
-        const baseId = String(f.id ?? f.track_id ?? f._idx ?? Math.random());
+      for (const f of facesData) {
+        const baseId = String(f.id ?? f.track_id ?? Math.random());
         const faceBox = normalizeBox(f.face_bbox_n || f.bbox_n);
-        const headBox = normalizeBox(f.head_bbox_n) || makeHeadBoxFromFace(faceBox);
+        const headBox = normalizeBox(f.head_bbox_n);
+        const faceKind = String(f.face_kind || "face").toLowerCase();
+        const headInferred = Boolean(f.head_inferred);
 
         if (showHeadRef.current && headBox) {
           drawOneBox(
             ctx,
             ov,
             headBox,
-            "rgba(255, 140, 60, 0.96)",
+            headInferred ? "rgba(255, 170, 90, 0.96)" : "rgba(255, 140, 60, 0.96)",
             smoothHeadRef,
             `head_${baseId}`,
             now,
-            "HEAD"
+            headInferred ? "HEAD*" : "HEAD",
+            headInferred
           );
         }
 
         if (showFaceRef.current && faceBox) {
+          let color = "rgba(38, 182, 222, 0.96)";
+          let label = "FACE";
+
+          if (faceKind === "side_face" || faceKind === "sideface") {
+            color = "rgba(182, 70, 255, 0.96)";
+            label = "SIDE FACE";
+          }
+
           drawOneBox(
             ctx,
             ov,
             faceBox,
-            "rgba(38, 182, 222, 0.96)",
+            color,
             smoothFaceRef,
             `face_${baseId}`,
             now,
-            "FACE"
+            label
           );
         }
       }
@@ -446,7 +546,10 @@ export default function App() {
         return;
       }
 
+      ctx.save();
+      ctx.clearRect(0, 0, targetW, targetH);
       ctx.drawImage(video, 0, 0, targetW, targetH);
+      ctx.restore();
 
       const blob = await new Promise((resolve) =>
         cap.toBlob(resolve, "image/jpeg", 0.82)
@@ -467,15 +570,34 @@ export default function App() {
         body: form,
       });
 
-      const data = await res.json();
+      const data = await res.json().catch(() => null);
+
+      if (!res.ok) {
+        console.error("Analyze backend error:", data || res.statusText);
+        return;
+      }
+
       const s = data?.stats || data;
       if (!s) return;
 
       setFaces(Number(s.faces ?? 0));
+      setHeads(Number(s.heads ?? 0));
       setFatigue(Math.round(s.class_avg_fatigue_pct ?? 0));
       setAttention(Math.round(s.class_avg_attention_pct ?? 0));
       setAlertActive(Boolean(s.alert_active ?? false));
+      setFatigueAlertActive(Boolean(s.fatigue_alert_active ?? false));
+      setAttentionAlertActive(Boolean(s.attention_alert_active ?? false));
+      setStudentAlerts(Array.isArray(s.student_alerts) ? s.student_alerts : []);
       setFps(Number(s.fps ?? 0));
+      setAlertEventCount(Number(s.alert_event_count ?? 0));
+      setValidObservations(Number(s.valid_observations ?? 0));
+
+      if (s.thresholds && typeof s.thresholds === "object") {
+        setThresholds((prev) => ({
+          ...prev,
+          ...s.thresholds,
+        }));
+      }
 
       facesDataRef.current = Array.isArray(s.faces_data) ? s.faces_data : [];
       setRecentReports(
@@ -492,14 +614,20 @@ export default function App() {
     if (running) return;
 
     try {
-      await fetch(`${BACKEND}/session/start`, { method: "POST" });
+      const res = await fetch(`${BACKEND}/session/start`, { method: "POST" });
+      if (!res.ok) {
+        const data = await res.json().catch(() => null);
+        console.error("Session start backend error:", data || res.statusText);
+      }
     } catch (err) {
       console.error("Session start error:", err);
     }
 
     setRunning(true);
     setStatus("running");
-    setReportReady(false);
+    setRaportReady(false);
+    setAlertEventCount(0);
+    setValidObservations(0);
 
     if (timerRef.current) clearInterval(timerRef.current);
     timerRef.current = setInterval(() => {
@@ -518,11 +646,21 @@ export default function App() {
     inFlightRef.current = false;
 
     try {
-      await fetch(`${BACKEND}/session/stop`, { method: "POST" });
-      setReportReady(true);
+      const res = await fetch(`${BACKEND}/session/stop`, { method: "POST" });
+      const data = await res.json().catch(() => null);
+
+      if (!res.ok) {
+        console.error("Session stop backend error:", data || res.statusText);
+      } else {
+        const summary = data?.summary || {};
+        setAlertEventCount(Number(summary.alert_event_count ?? 0));
+        setValidObservations(Number(summary.valid_observations ?? 0));
+      }
+
+      setRaportReady(true);
     } catch (err) {
       console.error("Session stop error:", err);
-      setReportReady(true);
+      setRaportReady(true);
     }
   }
 
@@ -533,13 +671,13 @@ export default function App() {
     smoothHeadRef.current.clear();
   }
 
-  async function downloadReport() {
+  async function downloadRaport() {
     try {
       const res = await fetch(`${BACKEND}/session/report`);
 
       if (!res.ok) {
         const err = await res.json().catch(() => null);
-        alert(err?.error || err?.detail || "Could not generate report");
+        alert(err?.error || err?.detail || "Could not generate raport");
         return;
       }
 
@@ -551,7 +689,7 @@ export default function App() {
 
       const disposition = res.headers.get("Content-Disposition");
       const match = disposition?.match(/filename="?([^"]+)"?/);
-      a.download = match?.[1] || "session_report.xlsx";
+      a.download = match?.[1] || "raport_sesiune.xlsx";
 
       document.body.appendChild(a);
       a.click();
@@ -559,13 +697,15 @@ export default function App() {
 
       window.URL.revokeObjectURL(url);
     } catch (err) {
-      console.error("Report download error:", err);
-      alert("Report download failed");
+      console.error("Raport download error:", err);
+      alert("Raport download failed");
     }
   }
 
   return (
     <div className="meet">
+      <audio ref={audioRef} src="/sounds.mp3" preload="auto" />
+
       <div className="top">
         <div className="stage">
           <div className="stageHeader">
@@ -574,13 +714,24 @@ export default function App() {
           </div>
 
           <div className="videoWrap">
-            <video ref={videoRef} autoPlay playsInline muted className="video" />
+            <video
+              ref={videoRef}
+              autoPlay
+              playsInline
+              muted
+              className="video"
+              style={{ transform: "none" }}
+            />
             <canvas ref={overlayRef} className="overlayCanvas" />
 
             <div className="overlayTopLeft">
               <div className="miniStat">
                 <span className="miniKey">Faces</span>
                 <span className="miniVal">{faces}</span>
+              </div>
+              <div className="miniStat">
+                <span className="miniKey">Heads</span>
+                <span className="miniVal">{heads}</span>
               </div>
               <div className="miniStat">
                 <span className="miniKey">Fatigue</span>
@@ -592,26 +743,118 @@ export default function App() {
               </div>
             </div>
 
-            {alertActive && (
-              <div className="alertBanner">ALERT: Class fatigue is high</div>
-            )}
+            {alertActive && <div className="alertBanner">{alertMessage}</div>}
           </div>
 
           <canvas ref={captureRef} className="hiddenCanvas" />
         </div>
 
         <div className="sidebar">
-          <div className="card">
-            <div className="cardTitle">Statistics</div>
+          <SectionCard
+            title="Statistics"
+            open={statsOpen}
+            onToggle={() => setStatsOpen((v) => !v)}
+            rightSlot={<span className="sectionBadge">{faces} / {heads}</span>}
+          >
             <Stat label="Faces" value={faces} />
+            <Stat label="Heads" value={heads} />
             <Stat label="Fatigue Avg" value={`${fatigue}%`} />
             <Stat label="Attention Avg" value={`${attention}%`} />
-            <Stat label="Alert" value={alertActive ? "ON" : "OFF"} />
+            <Stat label="Valid observations" value={validObservations} />
+            <Stat label="Alert events" value={alertEventCount} />
+            <Stat
+              label="Class Alert"
+              value={
+                fatigueAlertActive && attentionAlertActive
+                  ? "FATIGUE + ATTENTION"
+                  : fatigueAlertActive
+                  ? "FATIGUE"
+                  : attentionAlertActive
+                  ? "ATTENTION"
+                  : "OFF"
+              }
+            />
+            <Stat label="Students flagged" value={studentAlerts.length} />
             <Stat label="FPS" value={fps.toFixed(1)} />
-          </div>
+          </SectionCard>
 
-          <div className="card reportsCard">
-            <div className="cardTitle">Info</div>
+          <SectionCard
+            title="Student Alerts"
+            open={alertsOpen}
+            onToggle={() => setAlertsOpen((v) => !v)}
+            rightSlot={
+              <span className={`sectionBadge ${studentAlerts.length > 0 ? "warn" : ""}`}>
+                {studentAlerts.length}
+              </span>
+            }
+          >
+            <div className="studentAlertsList">
+              {studentAlerts.length > 0 ? (
+                studentAlerts.map((item) => (
+                  <div
+                    key={item.student_id}
+                    className={`studentAlertItem ${
+                      item.severity === "critical"
+                        ? "studentAlertCritical"
+                        : "studentAlertWarning"
+                    }`}
+                  >
+                    <div className="studentAlertTop">
+                      <span className="studentAlertId">{`Student ${item.student_id}`}</span>
+                      <span className="studentAlertSeverity">{item.severity}</span>
+                    </div>
+
+                    <div className="studentAlertText">
+                      {item.message ||
+                        (item.fatigue_pct > thresholds.student_fatigue_critical
+                          ? `Very fatigued (${Math.round(item.fatigue_pct)}%)`
+                          : item.attention_pct < thresholds.student_attention_critical
+                          ? `Very inattentive (${Math.round(item.attention_pct)}%)`
+                          : "Needs attention")}
+                    </div>
+
+                    <div className="studentAlertMetrics">
+                      Fatigue: <strong>{Math.round(item.fatigue_pct)}%</strong> | Attention:{" "}
+                      <strong>{Math.round(item.attention_pct)}%</strong>
+                    </div>
+                  </div>
+                ))
+              ) : alertActive ? (
+                <div className="reportEmpty">Only class-level alert is active</div>
+              ) : (
+                <div className="reportEmpty">No individual alerts</div>
+              )}
+            </div>
+          </SectionCard>
+
+          <SectionCard
+            title="Decision"
+            open={decisionOpen}
+            onToggle={() => setDecisionOpen((v) => !v)}
+            rightSlot={<span className="sectionBadge">AI</span>}
+          >
+            <div className="reportItem">
+              <div className="reportLine">{teacherDecision.summary}</div>
+              {teacherDecision.suggestions.length > 0 && (
+                <div className="decisionSuggestions">
+                  {teacherDecision.suggestions.map((item, idx) => (
+                    <div key={idx} className="decisionSuggestionLine">
+                      • {item}
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          </SectionCard>
+
+          <SectionCard
+            title="Info"
+            open={infoOpen}
+            onToggle={() => setInfoOpen((v) => !v)}
+            className="infoCard"
+            bodyClassName="infoBody"
+            rightSlot={<span className="sectionBadge">{recentReports.length}</span>}
+          >
             <div className="reportsList">
               {recentReports.length > 0 ? (
                 recentReports.map((report) => (
@@ -625,7 +868,7 @@ export default function App() {
                 </>
               )}
             </div>
-          </div>
+          </SectionCard>
         </div>
       </div>
 
@@ -666,7 +909,7 @@ export default function App() {
                 onChange={(e) => setShowFace(e.target.checked)}
                 disabled={!boxesOn}
               />
-              <span>Face</span>
+              <span>Face / Side face</span>
             </label>
 
             <label className={`boxCheck ${showHead ? "active" : ""}`}>
@@ -682,11 +925,11 @@ export default function App() {
 
           <button
             className="btn btnReport"
-            onClick={downloadReport}
-            disabled={!reportReady || running}
+            onClick={downloadRaport}
+            disabled={!raportReady || running}
             title="Exportă raportul sesiunii curente în Excel"
           >
-            Report
+            Raport
           </button>
         </div>
 

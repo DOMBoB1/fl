@@ -17,3 +17,7 @@ pydantic_core==2.27.2
 python-multipart==0.0.9
 wrapt==1.14.2
 requests==2.32.3
+
+torch==2.2.2
+torchvision==0.17.2
+ultralytics==8.3.59

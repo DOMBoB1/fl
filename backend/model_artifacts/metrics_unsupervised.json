@@ -1,0 +1,19 @@
+{
+  "mode": "unsupervised",
+  "feature_count": 157,
+  "train_samples": 6969,
+  "val_samples": 1504,
+  "test_samples": 3454,
+  "pca_components": 45,
+  "explained_variance_ratio_sum": 0.9512816667556763,
+  "anomaly_rate": {
+    "train": 0.09226574831396184,
+    "val": 0.19946808510638298,
+    "test": 0.5327156919513607
+  },
+  "score_stats": {
+    "train_mean": 0.09798510414267177,
+    "val_mean": 0.09188104169722307,
+    "test_mean": 0.0194578136080236
+  }
+}
