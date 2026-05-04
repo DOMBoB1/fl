@@ -4,6 +4,7 @@ import warnings
 import math
 from dataclasses import dataclass
 from typing import Dict, List, Optional, Set, Tuple, Any
+from openpyxl.chart import ScatterChart, Reference, Series
 
 os.environ["TF_CPP_MIN_LOG_LEVEL"] = "3"
 os.environ["GLOG_minloglevel"] = "3"
@@ -165,6 +166,7 @@ class MonitoringEngine:
 
         self.frame_idx = 0
         self.session_active = False
+        self.session_calibration_until: float = 0.0
 
         self.session_stats = SessionStatsManager()
         self.raport_manager = RaportManager(
@@ -623,6 +625,7 @@ class MonitoringEngine:
         self._reset_live_runtime_state()
 
         started_at = time.time()
+        self.session_calibration_until = started_at + float(getattr(config, "SESSION_CALIBRATION_SECONDS", 6.0))
         self.session_started_at = started_at
         self.session_stopped_at = None
         self.seat_memory.reset(started_at)
@@ -706,6 +709,9 @@ class MonitoringEngine:
             attention=attention,
             alert_active=alert_active,
         )
+
+    def _is_session_calibrating(self, now: float) -> bool:
+        return bool(self.session_active and now < float(getattr(self, "session_calibration_until", 0.0)))
 
     def has_session_data(self) -> bool:
         return self.session_stats.has_data()
@@ -881,6 +887,41 @@ class MonitoringEngine:
         state.clear()
         state.update(next_state)
         return nms_xyxy(stable, iou_thresh=0.45)
+
+    def _stabilize_attention_score(self, tid: int, raw_attention: float, now: float) -> float:
+        st = self.people.get(int(tid))
+        if st is None:
+            return float(raw_attention)
+
+        low_threshold = float(getattr(config, "ATTENTION_LOW_THRESHOLD", 50.0))
+        recovery_threshold = float(getattr(config, "ATTENTION_RECOVERY_THRESHOLD", 60.0))
+        confirm_seconds = float(getattr(config, "ATTENTION_LOW_CONFIRM_SECONDS", 120.0))
+        short_drop_value = float(getattr(config, "ATTENTION_SHORT_DROP_VALUE", 85.0))
+
+        raw_attention = float(raw_attention)
+
+        if not hasattr(st, "attention_low_since"):
+            st.attention_low_since = None
+        if not hasattr(st, "last_stable_attention"):
+            st.last_stable_attention = 100.0
+
+        if raw_attention < low_threshold:
+            if st.attention_low_since is None:
+                st.attention_low_since = now
+
+            low_duration = now - float(st.attention_low_since)
+
+            if low_duration < confirm_seconds:
+                stabilized = max(short_drop_value, float(st.last_stable_attention) * 0.90)
+            else:
+                stabilized = raw_attention
+        else:
+            if raw_attention >= recovery_threshold:
+                st.attention_low_since = None
+            stabilized = raw_attention
+
+        st.last_stable_attention = float(stabilized)
+        return float(stabilized)
 
     def _tight_head_from_face(self, face_box, w_img, h_img):
         x1, y1, x2, y2 = face_box
@@ -1070,7 +1111,7 @@ class MonitoringEngine:
                 if new_identity_id is not None:
                     identity_id = int(new_identity_id)
                     self.track_identity_cache[tid] = identity_id
-                elif identity_id is None and bool(getattr(config, "ENABLE_SEAT_MEMORY", True)):
+                elif bool(getattr(config, "ENABLE_SEAT_MEMORY", True)):
                     active_identity_ids = {
                         int(v) for v in self.track_identity_cache.values() if v is not None
                     }
@@ -1082,16 +1123,13 @@ class MonitoringEngine:
                     )
 
                     if reused_identity_id is not None:
-                        identity_id = self.identity_manager.force_assign_track_identity(
-                            track_id=tid,
-                            identity_id=int(reused_identity_id),
-                            face_bgr=identity_face,
-                            now=now,
-                        )
-                        self.track_identity_cache[tid] = int(identity_id)
+                        identity_id = int(reused_identity_id)
+                        self.track_identity_cache[tid] = identity_id
 
             if identity_id is not None and self.session_active:
-                self.session_seen_identity_ids.add(int(identity_id))
+                st_for_identity = self.people.get(tid)
+                if st_for_identity is not None and getattr(st_for_identity, "valid_observations", 0) >= int(getattr(config, "IDENTITY_MIN_VALID_OBSERVATIONS", 10)):
+                    self.session_seen_identity_ids.add(int(identity_id))
 
             if identity_id is not None and bool(getattr(config, "ENABLE_SEAT_MEMORY", True)):
                 self.seat_memory.update_identity(
@@ -1111,6 +1149,10 @@ class MonitoringEngine:
                 )
             except Exception:
                 continue
+
+            att_score = self._stabilize_attention_score(tid, att_score, now)
+            st.attention_pct = float(att_score)
+            st.fatigue_pct = float(fat_pct)
 
             active_fatigue.append(int(fat_pct))
             active_attention.append(float(att_score))
@@ -1304,12 +1346,15 @@ class MonitoringEngine:
         new_alert_event = bool(new_class_alert_event or (allow_individual_alerts and new_student_alert_event))
         new_alert_kind = new_class_alert_kind or (new_student_alert_kind if allow_individual_alerts else "")
 
-        if new_alert_event:
+        is_calibrating = self._is_session_calibrating(now)
+        stored_new_alert_event = bool(new_alert_event and not is_calibrating)
+
+        if stored_new_alert_event:
             self.session_alert_event_count += 1
 
         sound_alert_tick, self.last_any_alert_sound_ts = maybe_trigger_sound_alert(
             now=now,
-            should_trigger=new_alert_event,
+            should_trigger=stored_new_alert_event,
             last_any_alert_sound_ts=self.last_any_alert_sound_ts,
         )
 
@@ -1324,50 +1369,51 @@ class MonitoringEngine:
 
         decision_explanation = " | ".join(x for x in decision_parts if x)
 
-        for item in student_alerts or []:
-            student_key = str(item.get("student_id"))
-            fatigue_pct = float(item.get("fatigue_pct", 0.0))
-            attention_pct = float(item.get("attention_pct", 0.0))
-            decision_data = evaluate_student_state(attention_pct, fatigue_pct)
-            severity = str(decision_data.get("severity", item.get("severity", "none")) or "none")
-            reason = str(item.get("message", "") or decision_data.get("raport_message", ""))
-            decision = str(decision_data.get("ui_message", "No action needed."))
-            alert_type = str(decision_data.get("alert_type", "none") or "none")
+        if not is_calibrating:
+            for item in student_alerts or []:
+                student_key = str(item.get("student_id"))
+                fatigue_pct = float(item.get("fatigue_pct", 0.0))
+                attention_pct = float(item.get("attention_pct", 0.0))
+                decision_data = evaluate_student_state(attention_pct, fatigue_pct)
+                severity = str(decision_data.get("severity", item.get("severity", "none")) or "none")
+                reason = str(item.get("message", "") or decision_data.get("raport_message", ""))
+                decision = str(decision_data.get("ui_message", "No action needed."))
+                alert_type = str(decision_data.get("alert_type", "none") or "none")
 
-            self._update_session_student_stats(
-                student_key=student_key,
-                fatigue_pct=fatigue_pct,
-                attention_pct=attention_pct,
-                alert_type=alert_type,
-                severity=severity,
-                reason=reason,
-                decision=decision,
-            )
-
-        if not student_alerts and display_pairs:
-            for item in display_pairs:
-                student_key = str(item["id"])
-                baseline_attention = float(class_avg_attention)
-                baseline_fatigue = float(class_avg_fatigue)
-                decision_data = evaluate_student_state(baseline_attention, baseline_fatigue)
                 self._update_session_student_stats(
                     student_key=student_key,
-                    fatigue_pct=baseline_fatigue,
-                    attention_pct=baseline_attention,
-                    alert_type="none",
-                    severity="none",
-                    reason="No individual alerta was triggered for this student in the current observation.",
-                    decision=str(decision_data.get("ui_message", "No action needed.")),
+                    fatigue_pct=fatigue_pct,
+                    attention_pct=attention_pct,
+                    alert_type=alert_type,
+                    severity=severity,
+                    reason=reason,
+                    decision=decision,
                 )
 
-        self._append_session_sample(
-            now=now,
-            faces=faces_for_stats,
-            heads=head_count,
-            fatigue=class_avg_fatigue,
-            attention=class_avg_attention,
-            alert_active=alert_active,
-        )
+            if not student_alerts and display_pairs:
+                for item in display_pairs:
+                    student_key = str(item["id"])
+                    baseline_attention = float(class_avg_attention)
+                    baseline_fatigue = float(class_avg_fatigue)
+                    decision_data = evaluate_student_state(baseline_attention, baseline_fatigue)
+                    self._update_session_student_stats(
+                        student_key=student_key,
+                        fatigue_pct=baseline_fatigue,
+                        attention_pct=baseline_attention,
+                        alert_type="none",
+                        severity="none",
+                        reason="No individual alert was triggered for this student in the current observation.",
+                        decision=str(decision_data.get("ui_message", "No action needed.")),
+                    )
+
+            self._append_session_sample(
+                now=now,
+                faces=faces_for_stats,
+                heads=head_count,
+                fatigue=class_avg_fatigue,
+                attention=class_avg_attention,
+                alert_active=alert_active,
+            )
 
         studenti_runtime = []
         for item in display_pairs:
@@ -1381,36 +1427,79 @@ class MonitoringEngine:
                 "attention_pct": attention_pct,
             })
 
-        self._maybe_store_report(
-            now=now,
-            faces=faces_for_stats,
-            heads=head_count,
-            fatigue=class_avg_fatigue,
-            attention=class_avg_attention,
-            fatigue_alert_active=bool(fatigue_alert_active),
-            attention_alert_active=bool(attention_alert_active),
-            student_alerts=student_alerts if allow_individual_alerts else [],
-            studenti_runtime=studenti_runtime,
-            class_decision_explanation=class_decision_explanation,
+        if not is_calibrating:
+            self._maybe_store_report(
+                now=now,
+                faces=faces_for_stats,
+                heads=head_count,
+                fatigue=class_avg_fatigue,
+                attention=class_avg_attention,
+                fatigue_alert_active=bool(fatigue_alert_active),
+                attention_alert_active=bool(attention_alert_active),
+                student_alerts=student_alerts if allow_individual_alerts else [],
+                studenti_runtime=studenti_runtime,
+                class_decision_explanation=class_decision_explanation,
+            )
+
+            self._save_dataset_sample(
+                frame_bgr=frame_bgr,
+                visible_face_track_ids_this_frame=visible_face_track_ids_this_frame,
+                head_count_this_frame=head_count,
+                all_boxes_for_dataset=all_boxes_for_dataset,
+            )
+
+        total_detections = int(len(display_pairs))
+        mesh_confirmations = int(len(confirmed_track_ids_this_frame))
+        stable_tracks = int(len(visible_face_track_ids_this_frame))
+        consistent_head_face = int(min(face_count, head_count))
+
+        min_quality_samples = int(getattr(config, "LIVE_QUALITY_MIN_SAMPLES", 20))
+        if min_quality_samples < 1:
+            min_quality_samples = 1
+
+        if total_detections < min_quality_samples:
+            sample_factor = total_detections / max(min_quality_samples, 1)
+        else:
+            sample_factor = 1.0
+
+        mesh_confirmation_rate = round(
+            100.0 * mesh_confirmations / max(total_detections, 1) * sample_factor,
+            2,
+        )
+        stable_track_rate = round(
+            100.0 * stable_tracks / max(total_detections, 1) * sample_factor,
+            2,
+        )
+        head_face_consistency_pct = round(
+            100.0 * consistent_head_face / max(max(face_count, head_count), 1) * sample_factor,
+            2,
         )
 
-        self._save_dataset_sample(
-            frame_bgr=frame_bgr,
-            visible_face_track_ids_this_frame=visible_face_track_ids_this_frame,
-            head_count_this_frame=head_count,
-            all_boxes_for_dataset=all_boxes_for_dataset,
+        raw_live_quality_pct = (
+            0.4 * mesh_confirmation_rate
+            + 0.3 * stable_track_rate
+            + 0.3 * head_face_consistency_pct
         )
+        live_quality_pct = round(min(raw_live_quality_pct, 98.0), 2)
 
         self._last_stats = EngineStats(
             faces=faces_for_stats,
             heads=head_count,
             class_avg_fatigue_pct=class_avg_fatigue,
             class_avg_attention_pct=class_avg_attention,
+            live_quality_pct=live_quality_pct,
+            mesh_confirmation_rate=mesh_confirmation_rate,
+            stable_track_rate=stable_track_rate,
+            head_face_consistency_pct=head_face_consistency_pct,
+            total_detections=total_detections,
+            mesh_confirmations=mesh_confirmations,
+            stable_tracks=stable_tracks,
+            consistent_head_face=consistent_head_face,
             alert_active=alert_active,
             fatigue_alert_active=bool(fatigue_alert_active),
             attention_alert_active=bool(attention_alert_active),
             student_alerts=student_alerts,
-            new_alert_event=bool(new_alert_event),
+            new_alert_event=bool(stored_new_alert_event),
             new_alert_kind=str(new_alert_kind),
             sound_alert_tick=bool(sound_alert_tick),
             decision_explanation=decision_explanation,
@@ -1438,6 +1527,14 @@ class MonitoringEngine:
             "heads": s.heads,
             "class_avg_fatigue_pct": s.class_avg_fatigue_pct,
             "class_avg_attention_pct": s.class_avg_attention_pct,
+            "live_quality_pct": s.live_quality_pct,
+            "mesh_confirmation_rate": s.mesh_confirmation_rate,
+            "stable_track_rate": s.stable_track_rate,
+            "head_face_consistency_pct": s.head_face_consistency_pct,
+            "total_detections": s.total_detections,
+            "mesh_confirmations": s.mesh_confirmations,
+            "stable_tracks": s.stable_tracks,
+            "consistent_head_face": s.consistent_head_face,
             "alert_active": s.alert_active,
             "fatigue_alert_active": s.fatigue_alert_active,
             "attention_alert_active": s.attention_alert_active,
@@ -1469,6 +1566,8 @@ class MonitoringEngine:
             "recent_reports": self._recent_reports,
             "session_summary": self.get_session_summary(),
             "session_active": self.session_active,
+            "session_calibrating": self._is_session_calibrating(time.time()),
+            "calibration_seconds": float(getattr(config, "SESSION_CALIBRATION_SECONDS", 6.0)),
             "unique_identities_live": int(self.identity_manager.unique_count()),
             "alert_event_count": int(s.alert_event_count),
             "valid_observations": int(s.valid_observations),

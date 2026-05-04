@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import json
 import time
 from datetime import datetime
 from pathlib import Path
@@ -24,12 +25,20 @@ def _stil_titlu(cell, fill: str = "6F5B95") -> None:
     cell.font = Font(color="FFFFFF", bold=True, size=12)
     cell.fill = PatternFill("solid", fgColor=fill)
     cell.alignment = Alignment(horizontal="center", vertical="center")
+    cell.border = _border_subtire()
 
 
 def _stil_antet(cell, fill: str = "20B7D7") -> None:
     cell.font = Font(color="FFFFFF", bold=True)
     cell.fill = PatternFill("solid", fgColor=fill)
     cell.alignment = Alignment(horizontal="center", vertical="center")
+    cell.border = _border_subtire()
+
+
+def _stil_nota(cell, fill: str = "FFF2CC") -> None:
+    cell.fill = PatternFill("solid", fgColor=fill)
+    cell.font = Font(color="000000", italic=True)
+    cell.alignment = Alignment(horizontal="left", vertical="center", wrap_text=True)
     cell.border = _border_subtire()
 
 
@@ -48,11 +57,11 @@ def _latime_automata(ws, min_width: int = 12, max_width: int = 40) -> None:
 
 def _fill_stare(stare: str) -> PatternFill:
     stare = (stare or "").lower()
-    if stare == "critic":
+    if stare == "critical":
         return PatternFill("solid", fgColor="F4CCCC")
-    if stare == "avertizare":
+    if stare == "warning":
         return PatternFill("solid", fgColor="FCE5CD")
-    if stare in {"risc_oboseala", "scadere_atentie"}:
+    if stare in {"fatigue risk", "attention drop"}:
         return PatternFill("solid", fgColor="FFF2CC")
     return PatternFill("solid", fgColor="D9EAD3")
 
@@ -62,6 +71,36 @@ def _rotunjeste(value: Any, digits: int = 2) -> Any:
         return round(float(value), digits)
     except Exception:
         return value
+
+
+def _student_id_excel_value(value: Any) -> Any:
+    text = str(value).strip()
+    if text.isdigit():
+        try:
+            return int(text)
+        except Exception:
+            return text
+    return text
+
+
+def _incarca_metrici_evaluare() -> Dict[str, Any]:
+    metrics_path = Path(
+        getattr(
+            config,
+            "EVAL_METRICS_PATH",
+            Path(getattr(config, "SESSION_REPORTS_DIR", "reports")) / "last_eval_metrics.json",
+        )
+    )
+
+    if not metrics_path.exists():
+        return {}
+
+    try:
+        with open(metrics_path, "r", encoding="utf-8") as f:
+            data = json.load(f)
+        return data if isinstance(data, dict) else {}
+    except Exception:
+        return {}
 
 
 class RaportManager:
@@ -218,16 +257,18 @@ class RaportManager:
     def _stare_din_student(self, student: Dict[str, Any]) -> str:
         severity = str(student.get("final_severity", "none") or "none").lower()
         alert_type = str(student.get("final_alert_type", "none") or "none").lower()
+        attention = float(student.get("attention_avg", 100.0) or 100.0)
+        fatigue = float(student.get("fatigue_avg", 0.0) or 0.0)
 
-        if severity == "critical":
-            return "Critic"
-        if severity == "warning":
-            return "Avertizare"
+        if attention < 30 and fatigue > 60:
+            return "Critical"
+        if severity == "critical" or severity == "warning":
+            return "Warning"
         if alert_type == "fatigue":
-            return "Risc oboseala"
+            return "Fatigue risk"
         if alert_type == "attention":
-            return "Scadere atentie"
-        return "Monitorizare"
+            return "Attention drop"
+        return "Monitoring"
 
     def _actiune_recomandata(self, student: Dict[str, Any]) -> str:
         severity = str(student.get("final_severity", "none") or "none").lower()
@@ -279,9 +320,9 @@ class RaportManager:
         self,
         session_students: List[Dict[str, Any]],
     ) -> List[str]:
-        MIN_SAMPLES_FOR_REPORT = int(getattr(config, "MIN_SAMPLES_FOR_REPORT", 15))
-        MIN_VISIBLE_RATIO_FOR_REPORT = float(getattr(config, "MIN_VISIBLE_RATIO_FOR_REPORT", 0.15))
-        MIN_SPAN_SECONDS_FOR_REPORT = float(getattr(config, "MIN_SPAN_SECONDS_FOR_REPORT", 8.0))
+        min_samples = int(getattr(config, "MIN_SAMPLES_FOR_REPORT", 15))
+        min_visible_ratio = float(getattr(config, "MIN_VISIBLE_RATIO_FOR_REPORT", 0.15))
+        min_span_seconds = float(getattr(config, "MIN_SPAN_SECONDS_FOR_REPORT", 8.0))
 
         total_rows = len(self.trend_buffer)
         if total_rows <= 0:
@@ -335,9 +376,9 @@ class RaportManager:
                 span_seconds = max(0.0, float(last_ts) - float(first_ts))
 
             if (
-                samples >= MIN_SAMPLES_FOR_REPORT
-                and visible_ratio >= MIN_VISIBLE_RATIO_FOR_REPORT
-                and span_seconds >= MIN_SPAN_SECONDS_FOR_REPORT
+                samples >= min_samples
+                and visible_ratio >= min_visible_ratio
+                and span_seconds >= min_span_seconds
             ):
                 valid_ids.append(sid)
 
@@ -371,38 +412,71 @@ class RaportManager:
     def _construieste_sheet_overview(self, wb: Workbook, session_summary: Dict[str, Any]) -> None:
         ws = wb.active
         ws.title = "Session Overview"
+        ws.sheet_view.showGridLines = True
+        ws.freeze_panes = "A3"
+
+        ws.column_dimensions["A"].width = 30
+        ws.column_dimensions["B"].width = 78
 
         ws.merge_cells("A1:B1")
         ws["A1"] = "Class Monitor - Session Overview"
         _stil_titlu(ws["A1"])
 
-        durata_min = _rotunjeste(float(session_summary.get("duration_s", 0.0)) / 60.0, 2)
+        eval_metrics = _incarca_metrici_evaluare()
 
         rows = [
             ("Started at", session_summary.get("started_at", "")),
             ("Stopped at", session_summary.get("stopped_at", "")),
-            ("Duration (minutes)", durata_min),
-            ("Samples analyzed", int(session_summary.get("samples", 0))),
+            ("Duration (minutes)", _rotunjeste(float(session_summary.get("duration_s", 0.0)) / 60.0, 2)),
             ("Unique faces seen", int(session_summary.get("unique_faces_seen", 0))),
             ("Max faces seen", int(session_summary.get("max_faces_seen", 0))),
             ("Max heads seen", int(session_summary.get("max_heads_seen", 0))),
             ("Avg faces", _rotunjeste(session_summary.get("avg_faces", 0.0))),
             ("Avg heads", _rotunjeste(session_summary.get("avg_heads", 0.0))),
             ("Avg fatigue (%)", _rotunjeste(session_summary.get("avg_fatigue", 0.0))),
-            ("Avg attention (%)", _rotunjeste(session_summary.get("avg_attention", 0.0))),
-            ("Alert events", int(session_summary.get("alert_event_count", session_summary.get("alert_count", 0)))),
+            (
+                "Avg attention (%)",
+                _rotunjeste(
+                    float(np.mean([x.get("attention", 0.0) for x in self.raport_buffer]))
+                    if self.raport_buffer
+                    else session_summary.get("avg_attention", 0.0)
+                ),
+            ),
+            ("Detection accuracy (%)", _rotunjeste(eval_metrics.get("accuracy_pct", ""))),
+            ("Precision (%)", _rotunjeste(eval_metrics.get("precision_pct", ""))),
+            ("Recall (%)", _rotunjeste(eval_metrics.get("recall_pct", ""))),
+            ("F1 score (%)", _rotunjeste(eval_metrics.get("f1_pct", ""))),
+            ("Moments needing attention", int(session_summary.get("alert_event_count", session_summary.get("alert_count", 0)))),
         ]
 
         start_row = 3
         for idx, (label, value) in enumerate(rows, start=start_row):
             ws.cell(idx, 1, label)
             ws.cell(idx, 2, value)
+
             ws.cell(idx, 1).font = Font(bold=True)
             ws.cell(idx, 1).fill = PatternFill("solid", fgColor="D9E2F3")
             ws.cell(idx, 1).border = _border_subtire()
             ws.cell(idx, 2).border = _border_subtire()
+            ws.cell(idx, 2).alignment = Alignment(horizontal="right", vertical="center")
 
-        _latime_automata(ws, min_width=14, max_width=30)
+        note_row = start_row + len(rows)
+        ws.cell(note_row, 1, "What this means")
+        ws.cell(
+            note_row,
+            2,
+            "This counts the moments when the monitored student or group showed clearer signs of fatigue or low attention. A higher value means there were more situations that may have needed intervention, a short break, or a change in teaching pace.",
+        )
+
+        ws.cell(note_row, 1).font = Font(bold=True)
+        ws.cell(note_row, 1).fill = PatternFill("solid", fgColor="FFF2CC")
+        ws.cell(note_row, 2).fill = PatternFill("solid", fgColor="FFF2CC")
+        ws.cell(note_row, 1).border = _border_subtire()
+        ws.cell(note_row, 2).border = _border_subtire()
+        ws.cell(note_row, 1).alignment = Alignment(horizontal="left", vertical="top", wrap_text=True)
+        ws.cell(note_row, 2).alignment = Alignment(horizontal="left", vertical="top", wrap_text=True)
+
+        ws.row_dimensions[note_row].height = 72
 
     def _construieste_sheet_studenti(
         self,
@@ -411,6 +485,9 @@ class RaportManager:
         valid_student_ids: List[str],
     ) -> None:
         ws = wb.create_sheet("Students Requiring Attention")
+        ws.sheet_view.showGridLines = True
+        ws.freeze_panes = "A3"
+
         ws.merge_cells("A1:H1")
         ws["A1"] = "Students Requiring Attention"
         _stil_titlu(ws["A1"])
@@ -432,6 +509,7 @@ class RaportManager:
         rand = 4
         studenti_vizibili = []
         valid_set = set(valid_student_ids)
+        display_student_ids = {str(sid): idx for idx, sid in enumerate(valid_student_ids, start=1)}
 
         for student in session_students or []:
             sid = str(student.get("student_id", "")).strip()
@@ -447,7 +525,7 @@ class RaportManager:
 
         if not studenti_vizibili:
             ws.merge_cells("A4:H4")
-            ws["A4"] = "No students required special attention in this session."
+            ws["A4"] = "No students required attention in this session."
             ws["A4"].alignment = Alignment(horizontal="center")
             ws["A4"].border = _border_subtire()
             _latime_automata(ws, min_width=14, max_width=40)
@@ -463,7 +541,7 @@ class RaportManager:
             )
 
             valori = [
-                student.get("student_id", ""),
+                display_student_ids.get(str(student.get("student_id", "")).strip(), rand - 3),
                 _rotunjeste(student.get("fatigue_avg", 0.0)),
                 _rotunjeste(student.get("attention_avg", 0.0)),
                 _rotunjeste(student.get("fatigue_max", 0.0)),
@@ -476,10 +554,16 @@ class RaportManager:
             for col_idx, value in enumerate(valori, start=1):
                 cell = ws.cell(rand, col_idx, value)
                 cell.border = _border_subtire()
-                if col_idx in {2, 3, 4, 5}:
+
+                if col_idx == 1:
+                    if isinstance(value, int):
+                        cell.number_format = "0"
                     cell.alignment = Alignment(horizontal="center", vertical="center")
+                elif col_idx in {2, 3, 4, 5}:
+                    cell.alignment = Alignment(horizontal="center", vertical="center")
+                    cell.number_format = "0.00"
                 else:
-                    cell.alignment = Alignment(horizontal="left", vertical="center")
+                    cell.alignment = Alignment(horizontal="left", vertical="center", wrap_text=True)
 
             fill = _fill_stare(stare)
             for col_idx in range(1, len(headers) + 1):
@@ -487,65 +571,96 @@ class RaportManager:
 
             rand += 1
 
-        _latime_automata(ws, min_width=14, max_width=42)
+        widths = {
+            "A": 14,
+            "B": 14,
+            "C": 16,
+            "D": 14,
+            "E": 14,
+            "F": 14,
+            "G": 32,
+            "H": 42,
+        }
+        for col, width in widths.items():
+            ws.column_dimensions[col].width = width
 
     def _construieste_sheet_date_trend(
         self,
         wb: Workbook,
         valid_student_ids: List[str],
     ) -> Tuple[List[str], List[str], int]:
-        ws = wb.create_sheet("Trend Data")
+        ws = wb.create_sheet("Ignore - Trend Data")
+        ws.sheet_view.showGridLines = True
 
         student_ids = sorted(
             [str(x).strip() for x in valid_student_ids if str(x).strip()],
             key=lambda x: int(x) if x.isdigit() else x,
         )
         timestamps = [punct["timestamp_label"] for punct in self.trend_buffer]
+        student_id_set = set(student_ids)
+        display_student_ids = {str(sid): idx for idx, sid in enumerate(student_ids, start=1)}
 
-        ws["A1"] = "Fatigue Trend Data"
+        ws.merge_cells("A1:N1")
+        ws["A1"] = "Ignore - Raw data used to build the charts"
         _stil_titlu(ws["A1"])
 
-        _stil_antet(ws.cell(2, 1, "Time"))
-        for idx, student_id in enumerate(student_ids, start=2):
-            _stil_antet(ws.cell(2, idx, f"Student {student_id}"))
+        ws.merge_cells("A2:N3")
+        ws["A2"] = (
+            "These values are used only to generate the charts from sheet 3. "
+            "You can ignore this sheet during review."
+        )
+        _stil_nota(ws["A2"])
+        ws.row_dimensions[2].height = 26
+        ws.row_dimensions[3].height = 26
 
-        for row_idx, punct in enumerate(self.trend_buffer, start=3):
-            ws.cell(row_idx, 1, punct["timestamp_label"])
+        ws["A5"] = "Fatigue Trend Data"
+        _stil_titlu(ws["A5"])
+
+        _stil_antet(ws.cell(6, 1, "Time"))
+        for idx, student_id in enumerate(student_ids, start=2):
+            _stil_antet(ws.cell(6, idx, f"Student {display_student_ids.get(str(student_id), idx - 1)}"))
+
+        for row_idx, punct in enumerate(self.trend_buffer, start=7):
+            ws.cell(row_idx, 1, punct["timestamp_label"]).border = _border_subtire()
             lookup = {
                 str(item.get("student_id", "")).strip(): item
                 for item in punct.get("studenti", [])
-                if str(item.get("student_id", "")).strip() in set(student_ids)
+                if str(item.get("student_id", "")).strip() in student_id_set
             }
             for col_idx, student_id in enumerate(student_ids, start=2):
-                item = lookup.get(student_id)
-                ws.cell(
+                cell = ws.cell(
                     row_idx,
                     col_idx,
-                    None if item is None else _rotunjeste(item.get("fatigue_pct", 0.0)),
+                    None if lookup.get(student_id) is None else _rotunjeste(lookup[student_id].get("fatigue_pct", 0.0)),
                 )
+                cell.border = _border_subtire()
+                if cell.value is not None:
+                    cell.number_format = "0.00"
 
-        att_title_row = len(self.trend_buffer) + 6
+        att_title_row = len(self.trend_buffer) + 10
         ws.cell(att_title_row, 1, "Attention Trend Data")
         _stil_titlu(ws.cell(att_title_row, 1))
 
         _stil_antet(ws.cell(att_title_row + 1, 1, "Time"))
         for idx, student_id in enumerate(student_ids, start=2):
-            _stil_antet(ws.cell(att_title_row + 1, idx, f"Student {student_id}"))
+            _stil_antet(ws.cell(att_title_row + 1, idx, f"Student {display_student_ids.get(str(student_id), idx - 1)}"))
 
         for row_idx, punct in enumerate(self.trend_buffer, start=att_title_row + 2):
-            ws.cell(row_idx, 1, punct["timestamp_label"])
+            ws.cell(row_idx, 1, punct["timestamp_label"]).border = _border_subtire()
             lookup = {
                 str(item.get("student_id", "")).strip(): item
                 for item in punct.get("studenti", [])
-                if str(item.get("student_id", "")).strip() in set(student_ids)
+                if str(item.get("student_id", "")).strip() in student_id_set
             }
             for col_idx, student_id in enumerate(student_ids, start=2):
-                item = lookup.get(student_id)
-                ws.cell(
+                cell = ws.cell(
                     row_idx,
                     col_idx,
-                    None if item is None else _rotunjeste(item.get("attention_pct", 0.0)),
+                    None if lookup.get(student_id) is None else _rotunjeste(lookup[student_id].get("attention_pct", 0.0)),
                 )
+                cell.border = _border_subtire()
+                if cell.value is not None:
+                    cell.number_format = "0.00"
 
         _latime_automata(ws, min_width=14, max_width=22)
         return student_ids, timestamps, att_title_row + 1
@@ -558,42 +673,91 @@ class RaportManager:
         attention_header_row: int,
     ) -> None:
         ws = wb.create_sheet("Student Trends")
+        ws.sheet_view.showGridLines = True
 
-        ws.merge_cells("A1:J1")
+        ws.merge_cells("A1:N1")
         ws["A1"] = "Student Fatigue and Attention Trends"
         _stil_titlu(ws["A1"])
 
+        ws.merge_cells("A2:N3")
+        ws["A2"] = (
+            "The charts below show how fatigue and attention changed during the session "
+            "for the students included in the report."
+        )
+        _stil_nota(ws["A2"])
+        ws.row_dimensions[2].height = 26
+        ws.row_dimensions[3].height = 26
+
         if not student_ids or not timestamps:
-            ws["A3"] = "No trend data available for this session."
+            ws["A5"] = "No trend data available for this session."
             return
 
-        ws_date = wb["Trend Data"]
+        ws_date = wb["Ignore - Trend Data"]
 
         chart_fatigue = LineChart()
         chart_fatigue.title = "Fatigue Over Time"
         chart_fatigue.y_axis.title = "Fatigue (%)"
         chart_fatigue.x_axis.title = "Time"
-        chart_fatigue.height = 8
-        chart_fatigue.width = 20
+        chart_fatigue.height = 10
+        chart_fatigue.width = 26
+        chart_fatigue.style = 10
+        chart_fatigue.legend.position = "t"
+
+        try:
+            chart_fatigue.y_axis.scaling.min = 0
+            chart_fatigue.y_axis.scaling.max = 100
+        except Exception:
+            pass
+
+        try:
+            skip = max(1, len(timestamps) // 10)
+            chart_fatigue.x_axis.tickLblSkip = skip
+            chart_fatigue.x_axis.tickMarkSkip = skip
+        except Exception:
+            pass
 
         data_fatigue = Reference(
             ws_date,
             min_col=2,
             max_col=1 + len(student_ids),
-            min_row=2,
-            max_row=2 + len(timestamps),
+            min_row=6,
+            max_row=6 + len(timestamps),
         )
-        cats_fatigue = Reference(ws_date, min_col=1, min_row=3, max_row=2 + len(timestamps))
+        cats_fatigue = Reference(ws_date, min_col=1, min_row=7, max_row=6 + len(timestamps))
         chart_fatigue.add_data(data_fatigue, titles_from_data=True)
         chart_fatigue.set_categories(cats_fatigue)
-        ws.add_chart(chart_fatigue, "A3")
+
+        for series in chart_fatigue.series:
+            try:
+                series.marker.symbol = "none"
+                series.graphicalProperties.line.width = 28000
+                series.smooth = False
+            except Exception:
+                pass
+
+        ws.add_chart(chart_fatigue, "A5")
 
         chart_attention = LineChart()
         chart_attention.title = "Attention Over Time"
         chart_attention.y_axis.title = "Attention (%)"
         chart_attention.x_axis.title = "Time"
-        chart_attention.height = 8
-        chart_attention.width = 20
+        chart_attention.height = 10
+        chart_attention.width = 26
+        chart_attention.style = 10
+        chart_attention.legend.position = "t"
+
+        try:
+            chart_attention.y_axis.scaling.min = 0
+            chart_attention.y_axis.scaling.max = 100
+        except Exception:
+            pass
+
+        try:
+            skip = max(1, len(timestamps) // 10)
+            chart_attention.x_axis.tickLblSkip = skip
+            chart_attention.x_axis.tickMarkSkip = skip
+        except Exception:
+            pass
 
         attention_first_data_row = attention_header_row + 1
         attention_last_data_row = attention_header_row + len(timestamps)
@@ -613,7 +777,16 @@ class RaportManager:
         )
         chart_attention.add_data(data_attention, titles_from_data=True)
         chart_attention.set_categories(cats_attention)
-        ws.add_chart(chart_attention, "A22")
+
+        for series in chart_attention.series:
+            try:
+                series.marker.symbol = "none"
+                series.graphicalProperties.line.width = 28000
+                series.smooth = False
+            except Exception:
+                pass
+
+        ws.add_chart(chart_attention, "A28")
 
     def exporta_raport_sesiune_xlsx(
         self,
@@ -633,6 +806,14 @@ class RaportManager:
             valid_student_ids,
         )
         self._construieste_sheet_grafice(wb, student_ids, timestamps, attention_header_row)
+
+        desired_order = [
+            "Session Overview",
+            "Students Requiring Attention",
+            "Student Trends",
+            "Ignore - Trend Data",
+        ]
+        wb._sheets = [wb[name] for name in desired_order if name in wb.sheetnames]
 
         out_dir = Path(getattr(config, "SESSION_REPORTS_DIR", "reports"))
         out_dir.mkdir(parents=True, exist_ok=True)

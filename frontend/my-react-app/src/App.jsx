@@ -213,8 +213,11 @@ export default function App() {
   const [studentAlerts, setStudentAlerts] = useState([]);
   const [fps, setFps] = useState(0);
   const [recentReports, setRecentReports] = useState([]);
-  const [alertEventCount, setAlertEventCount] = useState(0);
-  const [validObservations, setValidObservations] = useState(0);
+
+  const [liveQuality, setLiveQuality] = useState(0);
+  const [meshRate, setMeshRate] = useState(0);
+  const [stableTrackRate, setStableTrackRate] = useState(0);
+  const [headFaceConsistency, setHeadFaceConsistency] = useState(0);
 
   const [thresholds, setThresholds] = useState({
     class_fatigue_on: 50,
@@ -278,6 +281,44 @@ export default function App() {
     studentAlerts,
     thresholds,
   ]);
+
+  function resetUiForNewSession() {
+    setFaces(0);
+    setHeads(0);
+    setFatigue(0);
+    setAttention(0);
+    setAlertActive(false);
+    setFatigueAlertActive(false);
+    setAttentionAlertActive(false);
+    setStudentAlerts([]);
+    setFps(0);
+    setRecentReports([]);
+    setRaportReady(false);
+
+    setLiveQuality(0);
+    setMeshRate(0);
+    setStableTrackRate(0);
+    setHeadFaceConsistency(0);
+
+    facesDataRef.current = [];
+    smoothFaceRef.current.clear();
+    smoothHeadRef.current.clear();
+    prevAnyAlertRef.current = false;
+
+    setThresholds({
+      class_fatigue_on: 50,
+      class_fatigue_off: 45,
+      class_attention_on: 50,
+      class_attention_off: 55,
+      student_fatigue_on: 60,
+      student_fatigue_off: 52,
+      student_attention_on: 50,
+      student_attention_off: 55,
+      student_fatigue_critical: 70,
+      student_attention_critical: 30,
+      min_active_students_for_class_alert: 1,
+    });
+  }
 
   useEffect(() => {
     boxesOnRef.current = boxesOn;
@@ -589,8 +630,11 @@ export default function App() {
       setAttentionAlertActive(Boolean(s.attention_alert_active ?? false));
       setStudentAlerts(Array.isArray(s.student_alerts) ? s.student_alerts : []);
       setFps(Number(s.fps ?? 0));
-      setAlertEventCount(Number(s.alert_event_count ?? 0));
-      setValidObservations(Number(s.valid_observations ?? 0));
+
+      setLiveQuality(Number(s.live_quality_pct ?? 0));
+      setMeshRate(Number(s.mesh_confirmation_rate ?? 0));
+      setStableTrackRate(Number(s.stable_track_rate ?? 0));
+      setHeadFaceConsistency(Number(s.head_face_consistency_pct ?? 0));
 
       if (s.thresholds && typeof s.thresholds === "object") {
         setThresholds((prev) => ({
@@ -600,9 +644,7 @@ export default function App() {
       }
 
       facesDataRef.current = Array.isArray(s.faces_data) ? s.faces_data : [];
-      setRecentReports(
-        Array.isArray(s.recent_reports) ? s.recent_reports.slice(0, 3) : []
-      );
+      setRecentReports(Array.isArray(s.recent_reports) ? s.recent_reports.slice(0, 3) : []);
     } catch (err) {
       console.error("Analyze error:", err);
     } finally {
@@ -613,26 +655,33 @@ export default function App() {
   async function start() {
     if (running) return;
 
+    resetUiForNewSession();
+    setStatus("starting");
+
     try {
       const res = await fetch(`${BACKEND}/session/start`, { method: "POST" });
       if (!res.ok) {
         const data = await res.json().catch(() => null);
         console.error("Session start backend error:", data || res.statusText);
+        setStatus("camera ready");
+        return;
       }
     } catch (err) {
       console.error("Session start error:", err);
+      setStatus("camera ready");
+      return;
     }
 
     setRunning(true);
     setStatus("running");
     setRaportReady(false);
-    setAlertEventCount(0);
-    setValidObservations(0);
 
     if (timerRef.current) clearInterval(timerRef.current);
     timerRef.current = setInterval(() => {
       sendFrameOnce();
     }, 260);
+
+    sendFrameOnce();
   }
 
   async function stop() {
@@ -651,13 +700,10 @@ export default function App() {
 
       if (!res.ok) {
         console.error("Session stop backend error:", data || res.statusText);
-      } else {
-        const summary = data?.summary || {};
-        setAlertEventCount(Number(summary.alert_event_count ?? 0));
-        setValidObservations(Number(summary.valid_observations ?? 0));
       }
 
       setRaportReady(true);
+      await sendFrameOnce();
     } catch (err) {
       console.error("Session stop error:", err);
       setRaportReady(true);
@@ -760,8 +806,6 @@ export default function App() {
             <Stat label="Heads" value={heads} />
             <Stat label="Fatigue Avg" value={`${fatigue}%`} />
             <Stat label="Attention Avg" value={`${attention}%`} />
-            <Stat label="Valid observations" value={validObservations} />
-            <Stat label="Alert events" value={alertEventCount} />
             <Stat
               label="Class Alert"
               value={
@@ -774,8 +818,15 @@ export default function App() {
                   : "OFF"
               }
             />
-            <Stat label="Students flagged" value={studentAlerts.length} />
+            <Stat label="Student alerts" value={studentAlerts.length} />
             <Stat label="FPS" value={fps.toFixed(1)} />
+            <Stat label="Live Quality" value={`${liveQuality.toFixed(1)}%`} />
+            <Stat label="Mesh Confirmation" value={`${meshRate.toFixed(1)}%`} />
+            <Stat label="Stable Tracks" value={`${stableTrackRate.toFixed(1)}%`} />
+            <Stat
+              label="Head-Face Consistency"
+              value={`${headFaceConsistency.toFixed(1)}%`}
+            />
           </SectionCard>
 
           <SectionCard
@@ -790,9 +841,9 @@ export default function App() {
           >
             <div className="studentAlertsList">
               {studentAlerts.length > 0 ? (
-                studentAlerts.map((item) => (
+                studentAlerts.map((item, idx) => (
                   <div
-                    key={item.student_id}
+                    key={`${idx}-${item.severity}-${item.fatigue_pct}-${item.attention_pct}`}
                     className={`studentAlertItem ${
                       item.severity === "critical"
                         ? "studentAlertCritical"
@@ -800,7 +851,7 @@ export default function App() {
                     }`}
                   >
                     <div className="studentAlertTop">
-                      <span className="studentAlertId">{`Student ${item.student_id}`}</span>
+                      <span className="studentAlertId">Student alert</span>
                       <span className="studentAlertSeverity">{item.severity}</span>
                     </div>
 
@@ -822,7 +873,7 @@ export default function App() {
               ) : alertActive ? (
                 <div className="reportEmpty">Only class-level alert is active</div>
               ) : (
-                <div className="reportEmpty">No individual alerts</div>
+                <div className="reportEmpty">No student alerts</div>
               )}
             </div>
           </SectionCard>

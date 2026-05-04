@@ -1,0 +1,7 @@
+metric,value
+face_detection_accuracy_like,0.05263157894736842
+face_detection_precision,1.0
+face_detection_recall,0.05263157894736842
+face_detection_f1,0.1
+fatigue_detection_frame_accuracy,0.0
+attention_detection_frame_accuracy,0.0

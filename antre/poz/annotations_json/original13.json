@@ -1,0 +1,56 @@
+{
+  "image_name": "original13.png",
+  "image_path": "C:\\Users\\Bob\\Desktop\\gits\\antre\\poz\\original13.png",
+  "image_width": 1843,
+  "image_height": 836,
+  "annotations": [
+    {
+      "label": "head",
+      "x1": 857,
+      "y1": 228,
+      "x2": 937,
+      "y2": 338,
+      "attention": ""
+    },
+    {
+      "label": "face",
+      "x1": 854,
+      "y1": 262,
+      "x2": 933,
+      "y2": 332,
+      "attention": ""
+    },
+    {
+      "label": "face",
+      "x1": 357,
+      "y1": 274,
+      "x2": 413,
+      "y2": 334,
+      "attention": "attentive"
+    },
+    {
+      "label": "face",
+      "x1": 1039,
+      "y1": 266,
+      "x2": 1137,
+      "y2": 345,
+      "attention": "attentive"
+    },
+    {
+      "label": "face",
+      "x1": 850,
+      "y1": 251,
+      "x2": 929,
+      "y2": 327,
+      "attention": "inattentive"
+    },
+    {
+      "label": "face",
+      "x1": 345,
+      "y1": 284,
+      "x2": 422,
+      "y2": 355,
+      "attention": "attentive"
+    }
+  ]
+}

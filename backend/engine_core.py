@@ -57,6 +57,23 @@ class PersonState:
 
 @dataclass
 class EngineStats:
+    session_id: Optional[int] = None
+    fps: float = 0.0
+
+    total_tracks: int = 0
+    active_tracks: int = 0
+    lost_tracks: int = 0
+
+    live_quality_pct: float = 0.0
+    mesh_confirmation_rate: float = 0.0
+    stable_track_rate: float = 0.0
+    head_face_consistency_pct: float = 0.0
+
+    total_detections: int = 0
+    mesh_confirmations: int = 0
+    stable_tracks: int = 0
+    consistent_head_face: int = 0
+
     faces: int = 0
     heads: int = 0
     class_avg_fatigue_pct: int = 0
@@ -67,16 +84,14 @@ class EngineStats:
     attention_alert_active: bool = False
 
     student_alerts: List[dict] = field(default_factory=list)
+
     new_alert_event: bool = False
     new_alert_kind: str = ""
-
     sound_alert_tick: bool = False
     decision_explanation: str = ""
 
-    fps: float = 0.0
     alert_event_count: int = 0
     valid_observations: int = 0
-
 
 @dataclass
 class StaleTrack:
@@ -791,7 +806,6 @@ def export_session_raport_xlsx(
 
     wb = Workbook()
 
-    # styles
     title_fill = PatternFill("solid", fgColor="6F558C")
     section_fill = PatternFill("solid", fgColor="DCE6F1")
     header_fill = PatternFill("solid", fgColor="26B6DE")
@@ -805,9 +819,6 @@ def export_session_raport_xlsx(
     thin = Side(style="thin", color="7F7F7F")
     border = Border(left=thin, right=thin, top=thin, bottom=thin)
 
-    # =========================================================
-    # SHEET 1 - SESSION OVERVIEW
-    # =========================================================
     ws = wb.active
     ws.title = "Session Overview"
 
@@ -907,9 +918,6 @@ def export_session_raport_xlsx(
     ws["D9"].border = border
     ws.merge_cells("C9:D12")
 
-    # =========================================================
-    # SHEET 2 - STUDENT ISSUES
-    # =========================================================
     ws2 = wb.create_sheet("Student Issues")
 
     widths = {
@@ -997,8 +1005,6 @@ def export_session_raport_xlsx(
     wb.save(out_path)
     return str(out_path)
 
-
-# Backward-compatible alias for older imports.
 def export_session_report_xlsx(summary: dict, session_students: Optional[List[dict]] = None) -> str:
     return export_session_raport_xlsx(summary=summary, session_students=session_students)
 

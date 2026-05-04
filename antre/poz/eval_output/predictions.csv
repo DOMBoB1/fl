@@ -1,0 +1,9 @@
+image_name,image_path,label,x1,y1,x2,y2,w,h,score,source,face_kind
+original10.png,C:\Users\Bob\Desktop\gits\antre\poz\original10.png,side_face,0,400,84,503,84,103,0.782171,mediapipe_face,side_face
+original10.png,C:\Users\Bob\Desktop\gits\antre\poz\original10.png,head,0,344,107,519,107,175,0.743063,derived_from_face,side_face
+original13.png,C:\Users\Bob\Desktop\gits\antre\poz\original13.png,side_face,841,255,939,353,98,98,0.683623,mediapipe_face,side_face
+original13.png,C:\Users\Bob\Desktop\gits\antre\poz\original13.png,head,814,202,966,368,152,166,0.649442,derived_from_face,side_face
+original14.png,C:\Users\Bob\Desktop\gits\antre\poz\original14.png,face,1228,282,1773,827,545,545,0.959654,mediapipe_face,face
+original14.png,C:\Users\Bob\Desktop\gits\antre\poz\original14.png,head,1076,0,1925,914,849,914,0.911672,derived_from_face,face
+original9.png,C:\Users\Bob\Desktop\gits\antre\poz\original9.png,side_face,19,405,116,502,97,97,0.761242,mediapipe_face,side_face
+original9.png,C:\Users\Bob\Desktop\gits\antre\poz\original9.png,head,0,352,143,517,143,165,0.72318,derived_from_face,side_face

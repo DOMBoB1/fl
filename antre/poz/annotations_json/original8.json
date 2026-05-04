@@ -1,0 +1,200 @@
+{
+  "image_name": "original8.png",
+  "image_path": "C:\\Users\\Bob\\Desktop\\gits\\antre\\poz\\original8.png",
+  "image_width": 1286,
+  "image_height": 804,
+  "annotations": [
+    {
+      "label": "face",
+      "x1": 233,
+      "y1": 465,
+      "x2": 276,
+      "y2": 511,
+      "attention": ""
+    },
+    {
+      "label": "face",
+      "x1": 92,
+      "y1": 487,
+      "x2": 123,
+      "y2": 511,
+      "attention": ""
+    },
+    {
+      "label": "face",
+      "x1": 398,
+      "y1": 481,
+      "x2": 426,
+      "y2": 510,
+      "attention": ""
+    },
+    {
+      "label": "face",
+      "x1": 484,
+      "y1": 484,
+      "x2": 507,
+      "y2": 508,
+      "attention": ""
+    },
+    {
+      "label": "face",
+      "x1": 761,
+      "y1": 482,
+      "x2": 801,
+      "y2": 523,
+      "attention": ""
+    },
+    {
+      "label": "face",
+      "x1": 1241,
+      "y1": 495,
+      "x2": 1276,
+      "y2": 535,
+      "attention": ""
+    },
+    {
+      "label": "head",
+      "x1": 1060,
+      "y1": 471,
+      "x2": 1094,
+      "y2": 525,
+      "attention": ""
+    },
+    {
+      "label": "head",
+      "x1": 1224,
+      "y1": 462,
+      "x2": 1268,
+      "y2": 539,
+      "attention": ""
+    },
+    {
+      "label": "head",
+      "x1": 762,
+      "y1": 466,
+      "x2": 801,
+      "y2": 529,
+      "attention": ""
+    },
+    {
+      "label": "head",
+      "x1": 487,
+      "y1": 463,
+      "x2": 510,
+      "y2": 517,
+      "attention": ""
+    },
+    {
+      "label": "head",
+      "x1": 394,
+      "y1": 463,
+      "x2": 429,
+      "y2": 515,
+      "attention": ""
+    },
+    {
+      "label": "head",
+      "x1": 214,
+      "y1": 442,
+      "x2": 275,
+      "y2": 512,
+      "attention": ""
+    },
+    {
+      "label": "head",
+      "x1": 90,
+      "y1": 463,
+      "x2": 136,
+      "y2": 506,
+      "attention": ""
+    },
+    {
+      "label": "face",
+      "x1": 229,
+      "y1": 458,
+      "x2": 256,
+      "y2": 496,
+      "attention": "attentive"
+    },
+    {
+      "label": "face",
+      "x1": 769,
+      "y1": 478,
+      "x2": 800,
+      "y2": 518,
+      "attention": "attentive"
+    },
+    {
+      "label": "face",
+      "x1": 1232,
+      "y1": 487,
+      "x2": 1274,
+      "y2": 536,
+      "attention": "looking_down"
+    },
+    {
+      "label": "face",
+      "x1": 487,
+      "y1": 477,
+      "x2": 506,
+      "y2": 501,
+      "attention": "looking_down"
+    },
+    {
+      "label": "face",
+      "x1": 1064,
+      "y1": 475,
+      "x2": 1093,
+      "y2": 522,
+      "attention": "looking_down"
+    },
+    {
+      "label": "face",
+      "x1": 93,
+      "y1": 484,
+      "x2": 141,
+      "y2": 518,
+      "attention": "looking_down"
+    },
+    {
+      "label": "face",
+      "x1": 397,
+      "y1": 473,
+      "x2": 422,
+      "y2": 505,
+      "attention": "inattentive"
+    },
+    {
+      "label": "face",
+      "x1": 484,
+      "y1": 475,
+      "x2": 521,
+      "y2": 507,
+      "attention": "inattentive"
+    },
+    {
+      "label": "face",
+      "x1": 365,
+      "y1": 491,
+      "x2": 443,
+      "y2": 510,
+      "attention": "inattentive"
+    },
+    {
+      "label": "face",
+      "x1": 89,
+      "y1": 474,
+      "x2": 118,
+      "y2": 509,
+      "attention": "inattentive"
+    },
+    {
+      "label": "face",
+      "x1": 1042,
+      "y1": 485,
+      "x2": 1096,
+      "y2": 530,
+      "attention": "inattentive"
+    }
+  ]
+}

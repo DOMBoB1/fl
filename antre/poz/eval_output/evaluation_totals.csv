@@ -1,0 +1,4 @@
+label,tp,fp,fn,precision,recall,f1
+face,1,0,54,1.0,0.0182,0.0357
+head,2,2,74,0.5,0.0263,0.05
+side_face,0,3,9,0.0,0.0,0.0
