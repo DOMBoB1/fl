@@ -719,16 +719,17 @@ class MonitoringEngine:
     def get_session_summary(self) -> dict:
         return self.session_stats.get_summary()
 
-    def export_session_raport_xlsx(self) -> str:
+    def export_session_raport_xlsx(self, report_options: Optional[Dict[str, Any]] = None) -> str:
         session_students = self._build_session_students_summary()
         return self.raport_manager.exporta_raport_sesiune_xlsx(
             session_id=self.session_id,
             session_summary=self.get_session_summary(),
             session_students=session_students,
+            report_options=report_options or {},
         )
 
-    def export_session_report_xlsx(self) -> str:
-        return self.export_session_raport_xlsx()
+    def export_session_report_xlsx(self, report_options: Optional[Dict[str, Any]] = None) -> str:
+        return self.export_session_raport_xlsx(report_options=report_options)
 
     def _update_fps(self, now: float):
         dt = now - self._last_time

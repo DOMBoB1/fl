@@ -5,10 +5,6 @@ from typing import Dict, List, Optional, Tuple
 import math
 
 
-# =========================
-# Basic geometry utilities
-# =========================
-
 @dataclass
 class Box:
     x1: float
@@ -58,8 +54,10 @@ def iou(a: Box, b: Box) -> float:
     ih = max(0.0, iy2 - iy1)
     inter = iw * ih
     union = a.area() + b.area() - inter
+
     if union <= 0:
         return 0.0
+
     return inter / union
 
 
@@ -72,23 +70,23 @@ def contains_ratio(outer: Box, inner: Box) -> float:
     iw = max(0.0, ix2 - ix1)
     ih = max(0.0, iy2 - iy1)
     inter = iw * ih
+
     denom = inner.area()
     if denom <= 0:
         return 0.0
+
     return inter / denom
 
 
 def center_distance_norm(a: Box, b: Box) -> float:
     ax, ay = a.center()
     bx, by = b.center()
+
     d = math.sqrt((ax - bx) ** 2 + (ay - by) ** 2)
     norm = max(1.0, (a.width() + a.height() + b.width() + b.height()) / 4.0)
+
     return d / norm
 
-
-# =========================
-# Detection model
-# =========================
 
 @dataclass
 class Detection:
@@ -120,39 +118,37 @@ class Detection:
 
 @dataclass
 class BoxLogicConfig:
-    # Minimum confidence by label
     min_conf_head: float = 0.25
     min_conf_face: float = 0.25
     min_conf_eye: float = 0.20
     min_conf_nose: float = 0.20
     min_conf_mouth: float = 0.20
 
-    # Matching thresholds
     face_inside_head_ratio: float = 0.55
     component_inside_face_ratio: float = 0.45
     component_inside_head_ratio: float = 0.35
     max_face_head_center_dist: float = 0.90
 
-    # Soft recovery rules
     allow_head_from_face: bool = True
     allow_head_from_partial_face: bool = True
     estimated_head_conf_from_face: float = 0.55
     estimated_head_conf_from_partial: float = 0.40
 
-    # Head growth factors when estimated from face
     head_from_face_scale_x: float = 1.90
     head_from_face_scale_y: float = 2.35
 
-    # Partial-face logic
     min_partial_components_for_head_candidate: int = 1
     min_partial_components_for_face_candidate: int = 2
 
-    # Keep unmatched face instead of dropping it
     keep_unmatched_face: bool = True
 
-    # Label aliases
+    max_same_label_iou: float = 0.55
+    max_head_face_iou: float = 0.72
+    min_head_face_area_ratio: float = 1.35
+    max_head_face_area_ratio: float = 5.50
+
     head_labels: Tuple[str, ...] = ("head", "person_head")
-    face_labels: Tuple[str, ...] = ("face", "sideface")
+    face_labels: Tuple[str, ...] = ("face", "side_face", "sideface")
     eye_labels: Tuple[str, ...] = ("eye", "left_eye", "right_eye")
     nose_labels: Tuple[str, ...] = ("nose",)
     mouth_labels: Tuple[str, ...] = ("mouth", "lips")
@@ -171,10 +167,6 @@ class ReconciledObject:
     notes: List[str] = field(default_factory=list)
 
 
-# =========================
-# Main logic
-# =========================
-
 class BoxLogic:
     def __init__(self, config: Optional[BoxLogicConfig] = None):
         self.cfg = config or BoxLogicConfig()
@@ -186,6 +178,7 @@ class BoxLogic:
         frame_h: Optional[int] = None,
     ) -> Dict[str, List]:
         filtered = self._filter_by_conf(detections)
+        filtered = self._dedupe_detections(filtered)
 
         heads = [d for d in filtered if d.label in self.cfg.head_labels]
         faces = [d for d in filtered if d.label in self.cfg.face_labels]
@@ -194,6 +187,7 @@ class BoxLogic:
         mouths = [d for d in filtered if d.label in self.cfg.mouth_labels]
 
         objects = self._pair_heads_faces(heads, faces)
+        self._fix_bad_head_face_overlaps(objects, frame_w, frame_h)
         self._attach_components(objects, eyes, noses, mouths)
         self._recover_missing_heads(objects, frame_w, frame_h)
         self._attach_orphan_components_to_new_objects(objects, eyes, noses, mouths, frame_w, frame_h)
@@ -219,28 +213,97 @@ class BoxLogic:
             "components": final_components,
         }
 
-    # -------------------------
-    # Stage 1: filtering
-    # -------------------------
+    def _dedupe_detections(self, detections: List[Detection]) -> List[Detection]:
+        result: List[Detection] = []
+
+        labels = sorted(set(d.label for d in detections))
+
+        for label in labels:
+            same_label = [d for d in detections if d.label == label]
+            same_label = sorted(same_label, key=lambda d: d.conf, reverse=True)
+
+            kept: List[Detection] = []
+
+            for det in same_label:
+                duplicate = False
+
+                for old in kept:
+                    if iou(det.box, old.box) >= self.cfg.max_same_label_iou:
+                        duplicate = True
+                        break
+
+                if not duplicate:
+                    kept.append(det)
+
+            result.extend(kept)
+
+        return result
+
+    def _fix_bad_head_face_overlaps(
+        self,
+        objects: List[ReconciledObject],
+        frame_w: Optional[int],
+        frame_h: Optional[int],
+    ) -> None:
+        for obj in objects:
+            if obj.head is None or obj.face is None:
+                continue
+
+            head_box = obj.head.box
+            face_box = obj.face.box
+
+            overlap = iou(head_box, face_box)
+            face_area = max(1.0, face_box.area())
+            head_area = max(1.0, head_box.area())
+            area_ratio = head_area / face_area
+
+            bad_overlap = overlap > self.cfg.max_head_face_iou
+            bad_size = (
+                area_ratio < self.cfg.min_head_face_area_ratio
+                or area_ratio > self.cfg.max_head_face_area_ratio
+            )
+
+            if not bad_overlap and not bad_size:
+                continue
+
+            new_head_box = self._estimate_head_from_face(face_box)
+
+            if frame_w is not None and frame_h is not None:
+                new_head_box = new_head_box.clamp(frame_w, frame_h)
+
+            obj.head = obj.head.copy_with(
+                box=new_head_box,
+                conf=min(obj.head.conf, obj.face.conf),
+                source="box_logic_overlap_reset",
+                meta={
+                    **obj.head.meta,
+                    "reset_from_face": True,
+                    "old_iou": round(overlap, 4),
+                    "old_area_ratio": round(area_ratio, 4),
+                },
+            )
+
+            obj.notes.append("head_box_reset_due_to_bad_overlap")
 
     def _filter_by_conf(self, detections: List[Detection]) -> List[Detection]:
         out: List[Detection] = []
-        for d in detections:
-            if d.label in self.cfg.head_labels and d.conf >= self.cfg.min_conf_head:
-                out.append(d)
-            elif d.label in self.cfg.face_labels and d.conf >= self.cfg.min_conf_face:
-                out.append(d)
-            elif d.label in self.cfg.eye_labels and d.conf >= self.cfg.min_conf_eye:
-                out.append(d)
-            elif d.label in self.cfg.nose_labels and d.conf >= self.cfg.min_conf_nose:
-                out.append(d)
-            elif d.label in self.cfg.mouth_labels and d.conf >= self.cfg.min_conf_mouth:
-                out.append(d)
-        return out
 
-    # -------------------------
-    # Stage 2: head-face pairing
-    # -------------------------
+        for d in detections:
+            label = str(d.label or "").strip()
+
+            if label in self.cfg.head_labels and d.conf >= self.cfg.min_conf_head:
+                out.append(d.copy_with(label=label))
+            elif label in self.cfg.face_labels and d.conf >= self.cfg.min_conf_face:
+                normalized_label = "side_face" if label == "sideface" else label
+                out.append(d.copy_with(label=normalized_label))
+            elif label in self.cfg.eye_labels and d.conf >= self.cfg.min_conf_eye:
+                out.append(d.copy_with(label=label))
+            elif label in self.cfg.nose_labels and d.conf >= self.cfg.min_conf_nose:
+                out.append(d.copy_with(label=label))
+            elif label in self.cfg.mouth_labels and d.conf >= self.cfg.min_conf_mouth:
+                out.append(d.copy_with(label=label))
+
+        return out
 
     def _pair_heads_faces(
         self,
@@ -269,6 +332,7 @@ class BoxLogic:
                     continue
 
                 score = (inside * 2.0) + face.conf - dist
+
                 if score > best_score:
                     best_score = score
                     best_idx = i
@@ -286,7 +350,6 @@ class BoxLogic:
             if i in used_faces:
                 continue
 
-            # soft rule: keep unmatched face as its own object
             if self.cfg.keep_unmatched_face:
                 objects.append(
                     ReconciledObject(
@@ -297,10 +360,6 @@ class BoxLogic:
                 )
 
         return objects
-
-    # -------------------------
-    # Stage 3: attach components
-    # -------------------------
 
     def _attach_components(
         self,
@@ -323,6 +382,7 @@ class BoxLogic:
             for i, eye in enumerate(eyes):
                 if i in eye_used:
                     continue
+
                 if self._component_matches_object(eye.box, anchor_face, anchor_head):
                     obj.eyes.append(eye)
                     eye_used.add(i)
@@ -330,6 +390,7 @@ class BoxLogic:
             for i, nose in enumerate(noses):
                 if i in nose_used:
                     continue
+
                 if self._component_matches_object(nose.box, anchor_face, anchor_head):
                     obj.noses.append(nose)
                     nose_used.add(i)
@@ -337,6 +398,7 @@ class BoxLogic:
             for i, mouth in enumerate(mouths):
                 if i in mouth_used:
                     continue
+
                 if self._component_matches_object(mouth.box, anchor_face, anchor_head):
                     obj.mouths.append(mouth)
                     mouth_used.add(i)
@@ -350,14 +412,12 @@ class BoxLogic:
         if face_box is not None:
             if contains_ratio(face_box, component) >= self.cfg.component_inside_face_ratio:
                 return True
+
         if head_box is not None:
             if contains_ratio(head_box, component) >= self.cfg.component_inside_head_ratio:
                 return True
-        return False
 
-    # -------------------------
-    # Stage 4: recover missing head
-    # -------------------------
+        return False
 
     def _recover_missing_heads(
         self,
@@ -369,9 +429,9 @@ class BoxLogic:
             if obj.head is not None:
                 continue
 
-            # Case A: face exists -> estimate head from face
             if obj.face is not None and self.cfg.allow_head_from_face:
                 est_box = self._estimate_head_from_face(obj.face.box)
+
                 if frame_w is not None and frame_h is not None:
                     est_box = est_box.clamp(frame_w, frame_h)
 
@@ -385,17 +445,19 @@ class BoxLogic:
                         "derived_from": "face",
                     },
                 )
+
                 obj.notes.append("synthetic_head_from_face")
                 continue
 
-            # Case B: no face, but enough partial components -> estimate soft head
             parts = len(obj.eyes) + len(obj.noses) + len(obj.mouths)
+
             if (
                 obj.face is None
                 and self.cfg.allow_head_from_partial_face
                 and parts >= self.cfg.min_partial_components_for_head_candidate
             ):
                 est_box = self._estimate_head_from_components(obj.eyes, obj.noses, obj.mouths)
+
                 if est_box is not None:
                     if frame_w is not None and frame_h is not None:
                         est_box = est_box.clamp(frame_w, frame_h)
@@ -410,6 +472,7 @@ class BoxLogic:
                             "derived_from": "partial_components",
                         },
                     )
+
                     obj.notes.append("synthetic_head_from_partial_components")
 
     def _estimate_head_from_face(self, face_box: Box) -> Box:
@@ -425,6 +488,7 @@ class BoxLogic:
         mouths: List[Detection],
     ) -> Optional[Box]:
         comps = eyes + noses + mouths
+
         if not comps:
             return None
 
@@ -435,12 +499,7 @@ class BoxLogic:
 
         base = Box(x1, y1, x2, y2)
 
-        # if we only saw a tiny fragment, estimate a bigger head region softly
         return base.expand(3.0, 3.6)
-
-    # -------------------------
-    # Stage 5: orphan components
-    # -------------------------
 
     def _attach_orphan_components_to_new_objects(
         self,
@@ -452,6 +511,7 @@ class BoxLogic:
         frame_h: Optional[int],
     ) -> None:
         used_ids = set()
+
         for obj in objects:
             for d in obj.eyes + obj.noses + obj.mouths:
                 used_ids.add(id(d))
@@ -460,25 +520,29 @@ class BoxLogic:
         orphan_noses = [d for d in noses if id(d) not in used_ids]
         orphan_mouths = [d for d in mouths if id(d) not in used_ids]
 
-        # Simplu: fiecare grup de componente orfane devine obiect nou dacă are sens minim
         all_orphans = orphan_eyes + orphan_noses + orphan_mouths
+
         if not all_orphans:
             return
 
-        # Grupare foarte simplă pe proximitate
         groups: List[List[Detection]] = []
+
         for det in all_orphans:
             placed = False
+
             for g in groups:
                 gx1 = min(x.box.x1 for x in g)
                 gy1 = min(x.box.y1 for x in g)
                 gx2 = max(x.box.x2 for x in g)
                 gy2 = max(x.box.y2 for x in g)
+
                 gbox = Box(gx1, gy1, gx2, gy2).expand(1.8, 1.8)
+
                 if contains_ratio(gbox, det.box) > 0.4 or iou(gbox, det.box) > 0.1:
                     g.append(det)
                     placed = True
                     break
+
             if not placed:
                 groups.append([det])
 
@@ -488,6 +552,7 @@ class BoxLogic:
             g_mouths = [d for d in g if d.label in self.cfg.mouth_labels]
 
             comp_count = len(g_eyes) + len(g_noses) + len(g_mouths)
+
             if comp_count < self.cfg.min_partial_components_for_head_candidate:
                 continue
 
@@ -502,9 +567,11 @@ class BoxLogic:
 
             if self.cfg.allow_head_from_partial_face:
                 est = self._estimate_head_from_components(g_eyes, g_noses, g_mouths)
+
                 if est is not None:
                     if frame_w is not None and frame_h is not None:
                         est = est.clamp(frame_w, frame_h)
+
                     obj.head = Detection(
                         label="head",
                         box=est,
@@ -515,15 +582,17 @@ class BoxLogic:
                             "derived_from": "orphan_components",
                         },
                     )
+
                     obj.notes.append("synthetic_head_from_orphan_components")
 
-            # optional face candidate if enough components
             if comp_count >= self.cfg.min_partial_components_for_face_candidate:
                 x1 = min(c.box.x1 for c in g)
                 y1 = min(c.box.y1 for c in g)
                 x2 = max(c.box.x2 for c in g)
                 y2 = max(c.box.y2 for c in g)
+
                 face_est = Box(x1, y1, x2, y2).expand(1.8, 1.8)
+
                 if frame_w is not None and frame_h is not None:
                     face_est = face_est.clamp(frame_w, frame_h)
 
@@ -537,13 +606,10 @@ class BoxLogic:
                         "derived_from": "component_group",
                     },
                 )
+
                 obj.notes.append("synthetic_face_from_component_group")
 
             objects.append(obj)
-
-    # -------------------------
-    # Stage 6: finalize
-    # -------------------------
 
     def _finalize_status(self, objects: List[ReconciledObject]) -> None:
         for obj in objects:
@@ -556,6 +622,7 @@ class BoxLogic:
                     obj.face.conf,
                     0.05 * min(parts, 3),
                 )
+
                 if obj.head.meta.get("synthetic"):
                     obj.notes.append("head_is_estimated")
 
@@ -572,7 +639,6 @@ class BoxLogic:
                     obj.confidence = obj.head.conf
 
             elif obj.face is not None and obj.head is None:
-                # n-ar trebui să rămână des aici, dar păstrăm soft
                 obj.status = "face_only_soft"
                 obj.confidence = obj.face.conf
                 obj.notes.append("face_without_head_kept_softly")

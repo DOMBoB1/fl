@@ -15,6 +15,7 @@ except Exception:
     winsound = None
 
 import config
+import decision_rules
 from attention import attentive_from_gaze, gaze_ratio
 from fatigue import fatigue_percent, perclos_from_events
 
@@ -106,18 +107,20 @@ class StaleTrack:
 
 class HybridYoloDetector:
     def __init__(self):
-        model_path = Path(getattr(config, "YOLO_MODEL_PATH", "best.pt"))
-        conf = float(getattr(config, "YOLO_CONF", 0.45))
-        imgsz = int(getattr(config, "YOLO_IMGSZ", 960))
-        device = getattr(config, "YOLO_DEVICE", "cpu")
+        self.model = None
+        self.conf = float(getattr(config, "YOLO_CONF", 0.45))
+        self.imgsz = int(getattr(config, "YOLO_IMGSZ", 960))
+        self.device = getattr(config, "YOLO_DEVICE", "cpu")
 
-        if not model_path.exists():
-            raise FileNotFoundError(f"YOLO model not found: {model_path}")
+        self.model_path = Path(getattr(config, "YOLO_MODEL_PATH", "best.pt"))
 
-        self.model = YOLO(str(model_path))
-        self.conf = conf
-        self.imgsz = imgsz
-        self.device = device
+        if not self.model_path.exists():
+            print(f"[YOLO] Model not found: {self.model_path}")
+            print("[YOLO] YOLO detections disabled. Check YOLO_MODEL_PATH in config.py.")
+            return
+
+        print(f"[YOLO] Using model: {self.model_path}")
+        self.model = YOLO(str(self.model_path))
 
     @staticmethod
     def _clip_box(x1, y1, x2, y2, w, h):
@@ -128,6 +131,9 @@ class HybridYoloDetector:
         return x1, y1, x2, y2
 
     def _predict(self, frame_bgr):
+        if self.model is None:
+            return []
+
         if frame_bgr is None or frame_bgr.size == 0:
             return []
 
@@ -1289,3 +1295,52 @@ def compute_face_metrics(lms, mesh_w, mesh_h, now: float, st: PersonState):
     st.valid_observations += 1
 
     return int(fat_pct), float(att_score)
+
+
+def build_ui_logic_payload(stats: EngineStats) -> dict:
+    student_alerts = list(getattr(stats, "student_alerts", []) or [])
+    fatigue = float(getattr(stats, "class_avg_fatigue_pct", 0) or 0)
+    attention = float(getattr(stats, "class_avg_attention_pct", 0) or 0)
+    heads = int(getattr(stats, "heads", 0) or 0)
+
+    decisions = decision_rules.build_ui_decisions(
+        heads=heads,
+        fatigue=fatigue,
+        attention=attention,
+        fatigue_alert_active=bool(getattr(stats, "fatigue_alert_active", False)),
+        attention_alert_active=bool(getattr(stats, "attention_alert_active", False)),
+        student_alerts=student_alerts,
+    )
+
+    return {
+        "thresholds": decision_rules.get_ui_thresholds(),
+        "group_decision": decisions["group"],
+        "individual_decision": decisions["individual"],
+        "decisions": decisions,
+        "alert_counts": {
+            "student_alerts": len(student_alerts),
+            "fatigue_alerts": sum(1 for x in student_alerts if bool(x.get("fatigue_alert_active")) or str(x.get("alert_type", "")).lower() == "fatigue"),
+            "attention_alerts": sum(1 for x in student_alerts if bool(x.get("attention_alert_active")) or str(x.get("alert_type", "")).lower() == "attention"),
+            "critical_fatigue": sum(1 for x in student_alerts if bool(x.get("fatigue_critical")) or float(x.get("fatigue_pct", 0) or 0) >= float(getattr(config, "ALERT_STUDENT_FATIGUE_CRITICAL", 70))),
+            "critical_attention": sum(1 for x in student_alerts if bool(x.get("attention_critical")) or float(x.get("attention_pct", 100) or 100) <= float(getattr(config, "ALERT_STUDENT_ATTENTION_CRITICAL", 30))),
+        },
+    }
+
+
+def attach_ui_logic_payload(stats_payload: dict, stats: EngineStats | None = None) -> dict:
+    if stats is not None:
+        ui_payload = build_ui_logic_payload(stats)
+    else:
+        class _Stats:
+            pass
+        tmp = _Stats()
+        tmp.student_alerts = list(stats_payload.get("student_alerts", []) or [])
+        tmp.class_avg_fatigue_pct = stats_payload.get("class_avg_fatigue_pct", 0)
+        tmp.class_avg_attention_pct = stats_payload.get("class_avg_attention_pct", 0)
+        tmp.heads = stats_payload.get("heads", 0)
+        tmp.fatigue_alert_active = stats_payload.get("fatigue_alert_active", False)
+        tmp.attention_alert_active = stats_payload.get("attention_alert_active", False)
+        ui_payload = build_ui_logic_payload(tmp)
+
+    stats_payload.update(ui_payload)
+    return stats_payload

@@ -16,7 +16,6 @@ engine = MonitoringEngine()
 
 init_dataset_db()
 set_dataset_recorder(None)
-dataset_recorder = None
 
 app.add_middleware(
     CORSMiddleware,
@@ -151,12 +150,6 @@ async def analyze(request: Request):
 @app.post("/session/start")
 def session_start():
     try:
-        if dataset_recorder is not None:
-            dataset_recorder.start(
-                source="webcam",
-                notes="Sesiune pornita din frontend",
-            )
-
         engine.start_session()
         return {
             "ok": True,
@@ -171,9 +164,6 @@ def session_start():
 @app.post("/session/stop")
 def session_stop():
     try:
-        if dataset_recorder is not None:
-            dataset_recorder.stop()
-
         engine.stop_session()
         return {
             "ok": True,
@@ -201,7 +191,12 @@ def session_summary():
 
 
 @app.get("/session/report")
-def session_report():
+def session_report(
+    report_type: str = "teacher",
+    chart_individual: int = 1,
+    chart_group: int = 1,
+    chart_alerts: int = 0,
+):
     try:
         if engine.session_active:
             return JSONResponse(
@@ -209,7 +204,22 @@ def session_report():
                 status_code=400,
             )
 
-        path = engine.export_session_report_xlsx()
+        selected_report_type = str(report_type or "teacher").strip().lower()
+        if selected_report_type in {"user", "prof"}:
+            selected_report_type = "teacher"
+        if selected_report_type not in {"teacher", "developer"}:
+            selected_report_type = "teacher"
+
+        report_options = {
+            "report_type": selected_report_type,
+            "charts": {
+                "individual": bool(chart_individual),
+                "group": bool(chart_group),
+                "alerts": bool(chart_alerts),
+            },
+        }
+
+        path = engine.export_session_report_xlsx(report_options=report_options)
         filename = os.path.basename(path)
 
         return FileResponse(
