@@ -37,7 +37,6 @@ def init_db(db_path: str) -> None:
     conn = _connect(db_path)
     cur = conn.cursor()
 
-    # 1) SESSIONS
     cur.execute("""
         CREATE TABLE IF NOT EXISTS sessions (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -68,7 +67,6 @@ def init_db(db_path: str) -> None:
         )
     """)
 
-    # 2) ANALYSIS SNAPSHOTS
     cur.execute("""
         CREATE TABLE IF NOT EXISTS analysis_snapshots (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -101,7 +99,6 @@ def init_db(db_path: str) -> None:
         )
     """)
 
-    # 3) SESSION STUDENTS
     cur.execute("""
         CREATE TABLE IF NOT EXISTS session_students (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -145,9 +142,6 @@ def init_db(db_path: str) -> None:
     conn.close()
 
 
-# -------------------------------------------------------------------
-# SESSION HELPERS
-# -------------------------------------------------------------------
 
 def start_session(
     db_path: str,
@@ -314,9 +308,6 @@ def list_sessions(db_path: str, limit: int = 20) -> List[Dict[str, Any]]:
     return rows
 
 
-# -------------------------------------------------------------------
-# SNAPSHOTS
-# -------------------------------------------------------------------
 
 def insert_snapshot(
     db_path: str,
@@ -458,9 +449,6 @@ def get_all_snapshots(
     return rows
 
 
-# -------------------------------------------------------------------
-# SESSION STUDENTS
-# -------------------------------------------------------------------
 
 def upsert_session_student(
     db_path: str,

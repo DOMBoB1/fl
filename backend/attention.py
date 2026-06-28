@@ -5,7 +5,6 @@ from typing import Iterable, List, Optional, Tuple
 
 import numpy as np
 
-# FaceMesh indices
 LEFT_EYE_CORNERS = (33, 133)
 RIGHT_EYE_CORNERS = (362, 263)
 LEFT_IRIS = [468, 469, 470, 471]
@@ -92,29 +91,21 @@ def attentive_from_reference(
 class AdaptiveAttentionConfig:
     enabled: bool = True
 
-    # How long we observe the class to infer a dominant direction
-    window_seconds: float = 300.0  # 5 minutes
+    window_seconds: float = 300.0
 
-    # We only trust the adaptive baseline if we saw enough valid class observations
     min_samples: int = 120
 
-    # At least this many students should contribute in a frame to consider it representative
     min_students_per_frame: int = 2
 
-    # If the classroom gaze varies too much, we do not adapt
     max_std_for_lock: float = 0.09
 
-    # Start from the classic "look ahead" assumption
     default_reference: float = 0.50
 
-    # Scoring against the current reference
     inner_tolerance: float = 0.08
     outer_tolerance: float = 0.18
 
-    # Blend new stable dominant direction slowly
     ema_alpha: float = 0.08
 
-    # Keep old behavior as fallback if adaptation is not reliable
     fallback_look_min: float = 0.32
     fallback_look_max: float = 0.68
     fallback_margin: float = 0.08
@@ -183,7 +174,6 @@ class AdaptiveAttentionState:
         spread = float(np.std(medians))
         avg_frame_std = float(np.mean(stds)) if len(stds) > 0 else 0.0
 
-        # We adapt only if the class direction is reasonably stable
         stable_enough = spread <= self.config.max_std_for_lock and avg_frame_std <= self.config.max_std_for_lock
 
         if stable_enough:

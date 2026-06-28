@@ -19,7 +19,6 @@ set_dataset_recorder(None)
 
 app.add_middleware(
     CORSMiddleware,
-    # Permite orice port de pe localhost / 127.0.0.1 (Vite poate folosi 5173, 5174, etc.)
     allow_origin_regex=r"http://(localhost|127\.0\.0\.1):\d+",
     allow_credentials=True,
     allow_methods=["*"],

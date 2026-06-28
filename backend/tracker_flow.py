@@ -2,7 +2,7 @@ import math
 import numpy as np
 import cv2
 
-# pylint: disable=no-member  # OpenCV's cv2 bindings lack static attribute info
+# pylint: disable=no-member
 
 def iou(a, b) -> float:
     ax1, ay1, ax2, ay2 = a
@@ -71,7 +71,7 @@ class FlowMultiTracker:
         self.dist_t = dist_t
         self.min_pts = min_pts
 
-        self.tracks = {}  # tid -> dict(bbox, last_seen, pts)
+        self.tracks = {}
         self.next_id = 1
         self.prev_gray = None
 
@@ -82,7 +82,6 @@ class FlowMultiTracker:
             self.prev_gray = gray
             return
 
-        # LK requires the same frame size, so reset flow state on resolution change
         if self.prev_gray.shape != gray.shape:
             self.prev_gray = gray
             for tid, tr in list(self.tracks.items()):
