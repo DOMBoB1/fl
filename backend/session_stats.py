@@ -73,12 +73,11 @@ class SessionStatsManager:
     def build_students_summary(self) -> List[Dict[str, Any]]:
         rows: List[Dict[str, Any]] = []
 
-        MIN_SAMPLES = 15  # 🔥 prag anti "student fantoma"
+        MIN_SAMPLES = 15  # prag anti "student fantoma"
 
         for student_key, item in self.session_student_stats.items():
             samples = int(item.get("samples", 0))
 
-            # ❌ IGNORA studenti cu prea putine aparitii
             if samples < MIN_SAMPLES:
                 continue
 

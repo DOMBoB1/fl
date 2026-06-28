@@ -78,12 +78,11 @@ class FlowMultiTracker:
     def update_optical_flow(self, frame_bgr, now):
         gray = cv2.cvtColor(frame_bgr, cv2.COLOR_BGR2GRAY)
 
-        # 1) First frame: initialize
         if self.prev_gray is None:
             self.prev_gray = gray
             return
 
-        # 2) If resolution changed, reset flow state (LK requires same size)
+        # LK requires the same frame size, so reset flow state on resolution change
         if self.prev_gray.shape != gray.shape:
             self.prev_gray = gray
             for tid, tr in list(self.tracks.items()):
@@ -91,7 +90,6 @@ class FlowMultiTracker:
                 tr["last_seen"] = now
             return
 
-        # 3) Normal LK update
         for tid, tr in list(self.tracks.items()):
             bbox = tr["bbox"]
             pts = tr.get("pts", None)
@@ -164,18 +162,15 @@ class FlowMultiTracker:
     def sync_with_detections(self, frame_bgr, dets, now):
         H, W = frame_bgr.shape[:2]
 
-        # clamp all dets first
         dets = [clamp_box(d, W, H) for d in dets]
 
         matches, _unmatched_t, unmatched_d = self._associate(dets)
 
-        # refresh matched
         for tid, di in matches:
             self.tracks[tid]["bbox"] = dets[di]
             self.tracks[tid]["last_seen"] = now
             self.tracks[tid]["pts"] = sample_points_in_box(dets[di], n=64)
 
-        # create new
         for di in unmatched_d:
             tid = self.next_id
             self.next_id += 1
